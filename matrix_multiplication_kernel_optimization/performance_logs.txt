@@ -125,3 +125,48 @@ Set the environment variable PYOPENCL_CTX='0' to avoid being asked again.
 Starting  20  OpenCL Matrix Multiplications...
 End of 20 Matrix Multiplications...
 0.8522071838378906 seconds at 403185.2701975816 MFLOPS
+
+First naive implementation:
+tp-1 on git main [!]  > uv run matrix_multiplication_kernel_optimization/host_code.py
+Please enter a value for localsize. Possible values: 4, 8, 16 and 32: 32
+Blocks Size is 32 * 32
+Creating an OpenCL context...
+Choose platform:
+[0] <pyopencl.Platform 'NVIDIA CUDA' at 0x5583d1a01f70>
+[1] <pyopencl.Platform 'Portable Computing Language' at 0x7f1be87f35e0>
+Choice [0]:0
+Choosing only available device: <pyopencl.Device 'NVIDIA GeForce RTX 3050 Ti Laptop GPU' on 'NVIDIA CUDA' at 0x5583d1a01b00>
+Set the environment variable PYOPENCL_CTX='0' to avoid being asked again.
+Starting 20 OpenCL Matrix Multiplications...
+End of 20 Matrix Multiplications...
+0.9019038677215576 seconds at 380968.96573690925 MFLOPS
+
+kernel 2: // Tiled and coalesced version
+tp-1 on git main [!]  x uv run matrix_multiplication_kernel_optimization/host_code.py
+Please enter a value for localsize. Possible values: 4, 8, 16 and 32: 32
+Blocks Size is 32 * 32
+Creating an OpenCL context...
+Choose platform:
+[0] <pyopencl.Platform 'NVIDIA CUDA' at 0x5599f670ef60>
+[1] <pyopencl.Platform 'Portable Computing Language' at 0x7f1c9e1f35e0>
+Choice [0]:0
+Choosing only available device: <pyopencl.Device 'NVIDIA GeForce RTX 3050 Ti Laptop GPU' on 'NVIDIA CUDA' at 0x5599f670eaf0>
+Set the environment variable PYOPENCL_CTX='0' to avoid being asked again.
+Starting 20 OpenCL Matrix Multiplications...
+End of 20 Matrix Multiplications...
+0.6869864463806152 seconds at 500151.619424577 MFLOPS
+
+kernel 4: // Use wider data types
+tp-1 on git main [!]  > uv run matrix_multiplication_kernel_optimization/host_code.py
+Please enter a value for localsize. Possible values: 4, 8, 16 and 32: 32
+Blocks Size is 32 * 32
+Creating an OpenCL context...
+Choose platform:
+[0] <pyopencl.Platform 'NVIDIA CUDA' at 0x560cda08af00>
+[1] <pyopencl.Platform 'Portable Computing Language' at 0x7f8a015f35e0>
+Choice [0]:0
+Choosing only available device: <pyopencl.Device 'NVIDIA GeForce RTX 3050 Ti Laptop GPU' on 'NVIDIA CUDA' at 0x560cda08aa90>
+Set the environment variable PYOPENCL_CTX='0' to avoid being asked again.
+Starting 20 OpenCL Matrix Multiplications...
+End of 20 Matrix Multiplications...
+0.20845484733581543 seconds at 1648306.0387963702 MFLOPS

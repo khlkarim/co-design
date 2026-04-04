@@ -1,0 +1,13 @@
+One device:
+
+tp-1 on git main [!?]  > uv run running_on_multiple_opencl_devices/host_code.py
+Creating an OpenCL context...
+Choose platform:
+[0] <pyopencl.Platform 'NVIDIA CUDA' at 0x557a30dd0db0>
+[1] <pyopencl.Platform 'Portable Computing Language' at 0x7f71bd9f35e0>
+Choice [0]:0
+Choosing only available device: <pyopencl.Device 'NVIDIA GeForce RTX 3050 Ti Laptop GPU' on 'NVIDIA CUDA' at 0x557a30dd0940>
+Set the environment variable PYOPENCL_CTX='0' to avoid being asked again.
+Starting 1 OpenCL Matrix Multiplications...
+End of 1 Matrix Multiplications...
+5.437124490737915 seconds at 202223.00034678378 MFLOPS
