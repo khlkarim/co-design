@@ -1,4 +1,5 @@
 import numpy
+import random
 import pyopencl as cl
 from time import time
 
@@ -32,14 +33,14 @@ mflop = COUNT * 2.0 * M * N * K / 1000000.0  # 2.0 because one multiplication an
 DEFAULT_WIDTH = 1
 width = DEFAULT_WIDTH
 
-# Dummy data: All the elements in each matrix are the same
+# Dummy data: All the elements in each matrix are the same (these make transpose operation unnecessary for kernel 3)
 AVAL = 3.257
 BVAL = 5.723
 cval = float(K) * AVAL * BVAL
 
-# localsize ** 2 = work group size?
+# localsize ** 2 = work group size
 DEFAULT_LOCALSIZE = 16
-localsize = read_int(f"Localsize (4, 8, 16, 32) (default: {DEFAULT_LOCALSIZE}): ", DEFAULT_LOCALSIZE)
+localsize = read_int(f"\nLocalsize (4, 8, 16, 32) (default: {DEFAULT_LOCALSIZE}): ", DEFAULT_LOCALSIZE)
 
 if localsize not in [4, 8, 16, 32]:
     localsize = DEFAULT_LOCALSIZE
@@ -51,10 +52,13 @@ print("Block Size is", localsize, "*", localsize)
 kernel_source = ""
 kernel_name = "./matrix_multiplication_kernel_optimization/default_coalsced_kernel.cl"
 
-print("Available kernels:")
+print("\nAvailable kernels:")
 print("\t 0: default coalsced kernel")
 print("\t 1: optimized coalsced kernel 1 - Tiled")
 print("\t 2: optimized coalsced kernel 2 - Use wider data types")
+print("\t 3: optimized coalsced kernel 3 - Kernel 5")
+print("\t 4: optimized coalsced kernel 4 - Kernel 6")
+print("\t 5: optimized coalsced kernel 4 - Kernel 7")
 
 kernelIdx = read_int("Pick a kernel (default: 0): ", 0)
 
@@ -71,6 +75,15 @@ elif kernelIdx == 2:
     kernel_source += "#define TS " + str(localsize) + "\n#define WIDTH " + str(width) + "\n"
     kernel_name = "./matrix_multiplication_kernel_optimization/optimized_coalsced_kernel_2.cl"
 
+elif kernelIdx == 3:
+    kernel_name = "./matrix_multiplication_kernel_optimization/kernel_5.cl"
+
+elif kernelIdx == 4:
+    kernel_name = "./matrix_multiplication_kernel_optimization/kernel_6.cl"
+
+elif kernelIdx == 5:
+    kernel_name = "./matrix_multiplication_kernel_optimization/kernel_7.cl"
+
 elif kernelIdx != 0:
     print("Invalid kernel idx:", kernelIdx)
     print("Falling back to the default coalsced kernel.")
@@ -78,7 +91,7 @@ elif kernelIdx != 0:
 kernel_source += open(kernel_name).read()
 
 # Set up OpenCL
-print("Creating an OpenCL context...")
+print("\nCreating an OpenCL context...")
 context = cl.create_some_context()
 queue = cl.CommandQueue(context)
 
@@ -100,25 +113,62 @@ mmul = program.mmul
 mmul.set_scalar_arg_dtypes([numpy.int32, numpy.int32, numpy.int32, None, None, None])
 
 # Do the multiplication COUNT times
-print("Starting", COUNT, "OpenCL Matrix Multiplications...")
+print("\nStarting", COUNT, "OpenCL Matrix Multiplications...")
 
 start_time = time()
 for i in range(COUNT):
     try:
-        mmul(
-            queue,
-            (M // width, N),
-            (localsize // width, localsize),
-            numpy.int32(M),
-            numpy.int32(N),
-            numpy.int32(K),
-            d_a,
-            d_b,
-            d_c,
-        )
+        if kernelIdx == 3:
+            mmul(
+                queue,
+                (M, N // 8),
+                (64, 64 // 8),
+                numpy.int32(M),
+                numpy.int32(N),
+                numpy.int32(K),
+                d_a,
+                d_b,
+                d_c,
+            )
+        elif kernelIdx == 4:
+            mmul(
+                queue,
+                (M // 8, N // 8),
+                (128 // 8, 128 // 8),
+                numpy.int32(M),
+                numpy.int32(N),
+                numpy.int32(K),
+                d_a,
+                d_b,
+                d_c,
+            )
+        elif kernelIdx == 5:
+            mmul(
+                queue,
+                (M // 8, N // 8),
+                (128 // 8, 128 // 8),
+                numpy.int32(M),
+                numpy.int32(N),
+                numpy.int32(K),
+                d_a,
+                d_b,
+                d_c,
+            )
+        else:
+            mmul(
+                queue,
+                (M // width, N),
+                (localsize // width, localsize),
+                numpy.int32(M),
+                numpy.int32(N),
+                numpy.int32(K),
+                d_a,
+                d_b,
+                d_c,
+            )
         queue.finish()
-    except Exception:
-        print(" ===  Error for localsize =", localsize, "===\n")
+    except cl.Error as e:
+        print(f"OpenCL Error encountered: {e}")
 run_time = time() - start_time
 
 print("End of", COUNT, "Matrix Multiplications...")
@@ -128,3 +178,11 @@ print(run_time, "seconds at", mflops, "MFLOPS")
 
 # Reading the result h_C
 cl.enqueue_copy(queue, h_C, d_c)
+
+print("\nRandom samples of h_C:")
+numChecks = 10
+for i in range(numChecks):
+    idx = random.randint(0, sizeC)
+    print("\th_C[" + str(idx) + "] = ", h_C[idx])
+
+print("\tcval: ", cval)
