@@ -1,0 +1,181 @@
+Platform: NVIDIA CUDA
+Device: NVIDIA GeForce RTX 3050 Ti Laptop GPU (ALL | GPU)
+	Global memory: 		3.68218994140625 GB
+	Global cache: 		560.0 KB (READ_WRITE_CACHE)
+	Global cache line: 	128 B
+	Local memory: 		48.0 KB (LOCAL)
+	Constant memory: 	64.0 KB
+	Compute units: 		20
+	Max work-group size: 	1024
+	Max work-item size: 	[1024, 1024, 64]
+	Lockstep unit: 		32
+
+Kernel 1:
+tp-1> uv run ./A/host_code.py
+M (default: 2048): 
+N (default: 2048): 
+K (default: 2048): 
+
+Available kernels:
+	0: Default coalsced kernel
+	1: Wider data-types kernel
+	2: Register blocking kernel
+	3: Wider loads with register blocking kernel
+Pick a kernel (default: 0): 
+
+TS (4, 8, 16, 32) (default: 16): 32
+Block Size is 32 * 32
+
+Creating an OpenCL context...
+Choose platform:
+[0] <pyopencl.Platform 'NVIDIA CUDA' at 0x564a9a1c23f0>
+[1] <pyopencl.Platform 'Portable Computing Language' at 0x7f9c9f7f35e0>
+Choice [0]:
+Choosing only available device: <pyopencl.Device 'NVIDIA GeForce RTX 3050 Ti Laptop GPU' on 'NVIDIA CUDA' at 0x564a9a1c1f80>
+Set the environment variable PYOPENCL_CTX='' to avoid being asked again.
+
+Starting 20 OpenCL Matrix Multiplications...
+End of 20 Matrix Multiplications...
+0.9638271331787109 seconds at 356492.7483902768 MFLOPS
+
+Random samples of h_C:
+	h_C[3131316] =  38175.184
+	h_C[3054793] =  38175.184
+	h_C[1367485] =  38175.184
+	h_C[2813681] =  38175.184
+	h_C[3596876] =  38175.184
+	h_C[1797383] =  38175.184
+	h_C[2612123] =  38175.184
+	h_C[3790714] =  38175.184
+	h_C[2814272] =  38175.184
+	h_C[2309896] =  38175.184
+	cval:  38174.332928
+
+Kernel 4:
+tp-1> uv run ./A/host_code.py
+M (default: 2048): 
+N (default: 2048): 
+K (default: 2048): 
+
+Available kernels:
+	0: Default coalsced kernel
+	1: Wider data-types kernel
+	2: Register blocking kernel
+	3: Wider loads with register blocking kernel
+Pick a kernel (default: 0): 1
+
+TS (4, 8, 16, 32) (default: 16): 32
+Block Size is 32 * 32
+Work per thread (1, 2, 4) (default: 4): 4
+
+Creating an OpenCL context...
+Choose platform:
+[0] <pyopencl.Platform 'NVIDIA CUDA' at 0x558ce35a8be0>
+[1] <pyopencl.Platform 'Portable Computing Language' at 0x7f9783ff35e0>
+Choice [0]:0
+Choosing only available device: <pyopencl.Device 'NVIDIA GeForce RTX 3050 Ti Laptop GPU' on 'NVIDIA CUDA' at 0x558ce35a8770>
+Set the environment variable PYOPENCL_CTX='0' to avoid being asked again.
+
+Starting 20 OpenCL Matrix Multiplications...
+End of 20 Matrix Multiplications...
+0.3583216667175293 seconds at 958907.6396847175 MFLOPS
+
+Random samples of h_C:
+	h_C[1256626] =  38175.184
+	h_C[2193311] =  38175.184
+	h_C[2933846] =  38175.184
+	h_C[3605871] =  38175.184
+	h_C[3300076] =  38175.184
+	h_C[4121814] =  38175.184
+	h_C[3661866] =  38175.184
+	h_C[600645] =  38175.184
+	h_C[3478334] =  38175.184
+	h_C[3127139] =  38175.184
+	cval:  38174.332928
+
+Kernel 6:
+tp-1> uv run ./A/host_code.py
+M (default: 2048): 
+N (default: 2048): 
+K (default: 2048): 
+
+Available kernels:
+	0: Default coalsced kernel
+	1: Wider data-types kernel
+	2: Register blocking kernel
+	3: Wider loads with register blocking kernel
+Pick a kernel (default: 0): 2
+TSM (default: 128): 
+TSN (default: 128): 
+TSK (default: 16): 
+WPTM (default: 8): 
+WPTN (default: 8): 
+
+Creating an OpenCL context...
+Choose platform:
+[0] <pyopencl.Platform 'NVIDIA CUDA' at 0x55716e74ce00>
+[1] <pyopencl.Platform 'Portable Computing Language' at 0x7f7ed23f35e0>
+Choice [0]:0
+Choosing only available device: <pyopencl.Device 'NVIDIA GeForce RTX 3050 Ti Laptop GPU' on 'NVIDIA CUDA' at 0x55716e74c990>
+Set the environment variable PYOPENCL_CTX='0' to avoid being asked again.
+
+Starting 20 OpenCL Matrix Multiplications...
+End of 20 Matrix Multiplications...
+0.1965031623840332 seconds at 1748559.053764719 MFLOPS
+
+Random samples of h_C:
+	h_C[47975] =  38175.184
+	h_C[1072023] =  38175.184
+	h_C[3350833] =  38175.184
+	h_C[1032736] =  38175.184
+	h_C[1061877] =  38175.184
+	h_C[3831425] =  38175.184
+	h_C[3763123] =  38175.184
+	h_C[3372176] =  38175.184
+	h_C[2394443] =  38175.184
+	h_C[3914396] =  38175.184
+	cval:  38174.332928
+
+Kernel 7:
+tp-1> uv run ./A/host_code.py
+M (default: 2048): 
+N (default: 2048): 
+K (default: 2048): 
+
+Available kernels:
+	0: Default coalsced kernel
+	1: Wider data-types kernel
+	2: Register blocking kernel
+	3: Wider loads with register blocking kernel
+Pick a kernel (default: 0): 3
+Work per thread (1, 2, 4) (default: 4): 4
+TSM (default: 128): 
+TSN (default: 128): 
+TSK (default: 16): 
+WPTM (default: 8): 
+WPTN (default: 8): 
+
+Creating an OpenCL context...
+Choose platform:
+[0] <pyopencl.Platform 'NVIDIA CUDA' at 0x55b286e3c1f0>
+[1] <pyopencl.Platform 'Portable Computing Language' at 0x7f6d887f35e0>
+Choice [0]:0
+Choosing only available device: <pyopencl.Device 'NVIDIA GeForce RTX 3050 Ti Laptop GPU' on 'NVIDIA CUDA' at 0x55b286e3bd80>
+Set the environment variable PYOPENCL_CTX='0' to avoid being asked again.
+
+Starting 20 OpenCL Matrix Multiplications...
+End of 20 Matrix Multiplications...
+0.16458535194396973 seconds at 2087654.7008689563 MFLOPS
+
+Random samples of h_C:
+	h_C[1734914] =  38175.184
+	h_C[3743341] =  38175.184
+	h_C[1510550] =  38175.184
+	h_C[3342379] =  38175.184
+	h_C[2439618] =  38175.184
+	h_C[249799] =  38175.184
+	h_C[389274] =  38175.184
+	h_C[3849043] =  38175.184
+	h_C[150166] =  38175.184
+	h_C[3639652] =  38175.184
+	cval:  38174.332928

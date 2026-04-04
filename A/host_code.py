@@ -29,66 +29,88 @@ sizeC = M * N
 # Number of MFLOP to be performed
 mflop = COUNT * 2.0 * M * N * K / 1000000.0  # 2.0 because one multiplication and one addition
 
-# Used in the wider data-types kernel
-DEFAULT_WIDTH = 1
-width = DEFAULT_WIDTH
-
-# Dummy data: All the elements in each matrix are the same (these make transpose operation unnecessary for kernel 3)
+# Dummy data: All the elements in each matrix are the equal
 AVAL = 3.257
 BVAL = 5.723
 cval = float(K) * AVAL * BVAL
 
-# localsize ** 2 = work group size
-DEFAULT_LOCALSIZE = 16
-localsize = read_int(f"\nLocalsize (4, 8, 16, 32) (default: {DEFAULT_LOCALSIZE}): ", DEFAULT_LOCALSIZE)
+# Configuring OpenCL kernel
+kernels = [
+    "./A/kernel_1.cl",  # Default coalsced kernel
+    "./A/kernel_4.cl",  # Wider data-types
+    "./A/kernel_6.cl",  # 2D register blocking
+    "./A/kernel_7.cl",  # Wider loads with register blocking
+]
 
-if localsize not in [4, 8, 16, 32]:
-    localsize = DEFAULT_LOCALSIZE
-    print("Invalid localsize size. Default Size", DEFAULT_LOCALSIZE, "will be used.")
+# The block size for kernels 1 and 4
+DEFAULT_TS = 16
+TS = DEFAULT_TS
 
-print("Block Size is", localsize, "*", localsize)
+# Wider data-types parameters
+DEFAULT_WIDTH = 1
+WIDTH = DEFAULT_WIDTH
 
-# OpenCL kernel
-kernel_source = ""
-kernel_name = "./matrix_multiplication_kernel_optimization/default_coalsced_kernel.cl"
+# Register blocking parameters
+DEFAULT_TSM = 128
+TSM = DEFAULT_TSM  # The tile-size in dimension M
+DEFAULT_TSN = 128
+TSN = DEFAULT_TSN  # The tile-size in dimension N
+DEFAULT_TSK = 16
+TSK = DEFAULT_TSK  # The tile-size in dimension K
+DEFAULT_WPTM = 8
+WPTM = DEFAULT_WPTM  # The work-per-thread in dimension M
+DEFAULT_WPTN = 8
+WPTN = DEFAULT_WPTN  # The work-per-thread in dimension N
 
 print("\nAvailable kernels:")
-print("\t 0: default coalsced kernel")
-print("\t 1: optimized coalsced kernel 1 - Tiled")
-print("\t 2: optimized coalsced kernel 2 - Use wider data types")
-print("\t 3: optimized coalsced kernel 3 - Kernel 5")
-print("\t 4: optimized coalsced kernel 4 - Kernel 6")
-print("\t 5: optimized coalsced kernel 4 - Kernel 7")
+print("\t 0: Default coalsced kernel")
+print("\t 1: Wider data-types kernel")
+print("\t 2: Register blocking kernel")
+print("\t 3: Wider loads with register blocking kernel")
 
+kernel_source = ""
+kernel_name = kernels[0]
 kernelIdx = read_int("Pick a kernel (default: 0): ", 0)
 
-if kernelIdx == 1:
-    kernel_source += "#define TS " + str(localsize) + "\n"
-    kernel_name = "./matrix_multiplication_kernel_optimization/optimized_coalsced_kernel_1.cl"
-
-elif kernelIdx == 2:
-    width = read_int("Work per thread (1, 2, 4): ", 4)
-    if width not in [1, 2, 4]:
-        width = DEFAULT_WIDTH
-        print("Invalid width. Default width", DEFAULT_WIDTH, "will be used.")
-
-    kernel_source += "#define TS " + str(localsize) + "\n#define WIDTH " + str(width) + "\n"
-    kernel_name = "./matrix_multiplication_kernel_optimization/optimized_coalsced_kernel_2.cl"
-
-elif kernelIdx == 3:
-    kernel_name = "./matrix_multiplication_kernel_optimization/kernel_5.cl"
-
-elif kernelIdx == 4:
-    kernel_name = "./matrix_multiplication_kernel_optimization/kernel_6.cl"
-
-elif kernelIdx == 5:
-    kernel_name = "./matrix_multiplication_kernel_optimization/kernel_7.cl"
-
-elif kernelIdx != 0:
+if kernelIdx not in [0, 1, 2, 3]:
+    kernelIdx = 0
     print("Invalid kernel idx:", kernelIdx)
     print("Falling back to the default coalsced kernel.")
 
-kernel_source += open(kernel_name).read()
+if kernelIdx == 0 or kernelIdx == 1:
+    TS = read_int(f"\nTS (4, 8, 16, 32) (default: {DEFAULT_TS}): ", DEFAULT_TS)
+
+    if TS not in [4, 8, 16, 32]:
+        TS = DEFAULT_TS
+        print("Invalid tile size. Default size", DEFAULT_TS, "will be used.")
+
+    print("Block Size is", TS, "*", TS)
+    kernel_source += f"""#define TS {TS}\n"""
+
+if kernelIdx == 1 or kernelIdx == 3:
+    WIDTH = read_int("Work per thread (1, 2, 4) (default: 4): ", 4)
+    if WIDTH not in [1, 2, 4]:
+        WIDTH = 4
+        print("Invalid width. Default width", WIDTH, "will be used.")
+
+    kernel_source += f"""#define WIDTH {WIDTH}\n"""
+
+if kernelIdx == 2 or kernelIdx == 3:
+    TSM = read_int(f"TSM (default: {DEFAULT_TSM}): ", DEFAULT_TSM)
+    TSN = read_int(f"TSN (default: {DEFAULT_TSN}): ", DEFAULT_TSN)
+    TSK = read_int(f"TSK (default: {DEFAULT_TSK}): ", DEFAULT_TSK)
+    WPTM = read_int(f"WPTM (default: {DEFAULT_WPTM}): ", DEFAULT_WPTM)
+    WPTN = read_int(f"WPTN (default: {DEFAULT_WPTN}): ", DEFAULT_WPTN)
+
+    kernel_source += f"""
+        #define TSM {TSM}
+        #define TSN {TSN}
+        #define TSK {TSK}
+        #define WPTM {WPTM}
+        #define WPTN {WPTN}
+        """
+
+kernel_source += open(kernels[kernelIdx]).read()
 
 # Set up OpenCL
 print("\nCreating an OpenCL context...")
@@ -118,11 +140,11 @@ print("\nStarting", COUNT, "OpenCL Matrix Multiplications...")
 start_time = time()
 for i in range(COUNT):
     try:
-        if kernelIdx == 3:
+        if kernelIdx == 0:
             mmul(
                 queue,
-                (M, N // 8),
-                (64, 64 // 8),
+                (M, N),
+                (TS, TS),
                 numpy.int32(M),
                 numpy.int32(N),
                 numpy.int32(K),
@@ -130,11 +152,11 @@ for i in range(COUNT):
                 d_b,
                 d_c,
             )
-        elif kernelIdx == 4:
+        elif kernelIdx == 1:
             mmul(
                 queue,
-                (M // 8, N // 8),
-                (128 // 8, 128 // 8),
+                (M // WIDTH, N),
+                (TS // WIDTH, TS),
                 numpy.int32(M),
                 numpy.int32(N),
                 numpy.int32(K),
@@ -142,11 +164,11 @@ for i in range(COUNT):
                 d_b,
                 d_c,
             )
-        elif kernelIdx == 5:
+        elif kernelIdx == 2 or kernelIdx == 3:
             mmul(
                 queue,
-                (M // 8, N // 8),
-                (128 // 8, 128 // 8),
+                (M // WPTM, N // WPTN),
+                (TSM // WPTM, TSN // WPTN),
                 numpy.int32(M),
                 numpy.int32(N),
                 numpy.int32(K),
@@ -154,18 +176,7 @@ for i in range(COUNT):
                 d_b,
                 d_c,
             )
-        else:
-            mmul(
-                queue,
-                (M // width, N),
-                (localsize // width, localsize),
-                numpy.int32(M),
-                numpy.int32(N),
-                numpy.int32(K),
-                d_a,
-                d_b,
-                d_c,
-            )
+
         queue.finish()
     except cl.Error as e:
         print(f"OpenCL Error encountered: {e}")
