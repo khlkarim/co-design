@@ -1,24 +1,22 @@
 __kernel void mmul(
-    const int M, const int N, const int K,
-    const __global float* A,
-    const __global float* B,
-    __global float* C
-) {
-    // Thread identifiers
-    const int globalRow = get_global_id(0); // Row ID of C (0..M)
-    const int globalCol = get_global_id(1); // Col ID of C (0..N)
+  const int M, const int N, const int K,
+  const __global float* A,
+  const __global float* B,
+  __global float* C) {
+  
+  int k;
+  int i = get_global_id(0);
+  int j = get_global_id(1);
 
-if(globalCol*M + globalRow < GPU_BUFFER_SIZE) {
+  float tmp;
+  if ((i < N) && (j < N))
+  {
+    tmp = 0.0;
 
-
- 
-    // Compute a single element (loop over K)
-    float acc = 0.0f;
-    for (int k=0; k<K; k++) {
-        acc += A[k*M + globalRow] * B[globalCol*K + k];
+    for (k = 0; k < N; k++) {
+      tmp += A[i*N+k] * B[k*N+j];
     }
- 
-    // Store the result
-    C[globalCol*M + globalRow] = acc;
-}
+
+    C[i*N+j] = tmp;
+  }
 }
