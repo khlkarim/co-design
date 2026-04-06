@@ -1,0 +1,36 @@
+kernel 9 :
+Random samples:
+C[462,878] = 38175.18359375
+C[323,707] = 38175.18359375
+C[1634,1486] = 38175.18359375
+C[2046,1077] = 38175.18359375
+C[172,190] = 38175.18359375
+C[1084,1657] = 38175.18359375
+C[516,1430] = 38175.18359375
+C[950,1743] = 38175.18359375
+C[1634,336] = 38175.18359375
+C[1252,1914] = 38175.18359375
+
+Expected: 38174.332928
+
+Time: 0.0557 s
+Performance: 3082.69 GFLOPS
+
+
+
+
+Notes :
+🧠 RTX 3050 Key Facts (what matters for tuning)
+
+Even without exact SKU, Ampere GPUs behave like this:
+
+Warp size = 32 threads
+Max threads per SM ≈ 1536
+Shared memory per SM = 64 KB (but practical ~48 KB usable)
+Registers per thread = up to 255 (cuBLAS uses near max)
+Best performance when:
+1–2 workgroups per SM
+high register usage
+high data reuse (big tiles)
+
+👉 This matches exactly what Kernel 9 is trying to do.
