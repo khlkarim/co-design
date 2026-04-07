@@ -1,100 +1,109 @@
-import pyopencl as cl
 import numpy as np
-import time
+import pyopencl as cl
+from time import time
 
-# --- Problem sizes ---
-M, N, K = 2000, 2000, 2000  # original matrix sizes
-TSM, TSN, TSK = 128, 128, 16
-WPTM, WPTN = 8, 8
-WIDTH = 4  # float4
+# ---------------------------
+# User-configurable parameters
+# ---------------------------
+M = 2048
+N = 2048
+K = 2048
 
-# --- Helper to round up to multiple ---
-def roundup(x, multiple):
-    return ((x + multiple - 1) // multiple) * multiple
+TSM = 128   # Tile size in M
+TSN = 128   # Tile size in N
+TSK = 16    # Tile size in K
+WPTM = 8    # Work per thread M
+WPTN = 8    # Work per thread N
+WIDTH = 4   # Vectorized load width (float4)
 
-# --- Compute padded sizes ---
-M_XL = roundup(M, TSM)
-N_XL = roundup(N, TSN)
-K_XL = roundup(K, TSK)
-K_XL = roundup(K_XL, WIDTH)  # ensure divisible by WIDTH for float4
+COUNT = 20  # Number of repetitions
+
+# ---------------------------
+# Compute padded sizes
+# ---------------------------
+def pad_to(x, tile):
+    return ((x + tile - 1) // tile) * tile
+
+M_XL = pad_to(M, TSM)
+N_XL = pad_to(N, TSN)
+K_XL = pad_to(K, TSK)
 
 print(f"Padded sizes: M_XL={M_XL}, N_XL={N_XL}, K_XL={K_XL}")
 
-# --- Random input matrices ---
-A = np.random.rand(M, K).astype(np.float32)
-B = np.random.rand(K, N).astype(np.float32)
+# ---------------------------
+# Initialize matrices
+# ---------------------------
+AVAL = 3.257
+BVAL = 5.723
+h_A = np.zeros((M_XL, K_XL), dtype=np.float32)
+h_B = np.zeros((K_XL, N_XL), dtype=np.float32)
+h_C = np.zeros((M_XL, N_XL), dtype=np.float32)
 
-# --- Padding matrices ---
-A_pad = np.zeros((M_XL, K_XL), dtype=np.float32)
-B_pad = np.zeros((K_XL, N_XL), dtype=np.float32)
-A_pad[:M, :K] = A
-B_pad[:K, :N] = B
-C_pad = np.zeros((M_XL, N_XL), dtype=np.float32)
+# Fill only original sizes
+h_A[:M, :K] = AVAL
+h_B[:K, :N] = BVAL
 
-# --- OpenCL setup ---
-platforms = cl.get_platforms()
-print("Choose platform:")
-for i, p in enumerate(platforms):
-    print(f"[{i}] {p}")
-plat_idx = int(input("Choice [0]: ") or 0)
-platform = platforms[plat_idx]
-devices = platform.get_devices()
-device = devices[0]
-ctx = cl.Context([device])
+# ---------------------------
+# OpenCL setup
+# ---------------------------
+ctx = cl.create_some_context()
 queue = cl.CommandQueue(ctx)
 
-print(f"Using device: {device}")
-
-# --- Load kernel ---
-kernel_source = open("kernel_10.cl").read()
-prg = cl.Program(ctx, kernel_source).build()
-
 mf = cl.mem_flags
-A_buf = cl.Buffer(ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=A_pad)
-B_buf = cl.Buffer(ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=B_pad)
-C_buf = cl.Buffer(ctx, mf.WRITE_ONLY, C_pad.nbytes)
+d_A = cl.Buffer(ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=h_A)
+d_B = cl.Buffer(ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=h_B)
+d_C = cl.Buffer(ctx, mf.WRITE_ONLY, h_C.nbytes)
 
-# --- Launch parameters ---
-local = (TSM // WPTM, TSN // WPTN)
+# ---------------------------
+# Load Kernel 10 source
+# ---------------------------
+with open("C:\\co-design\\co-design\\Amal\\A\\kernel_10.cl", "r") as f:
+    kernel_source = f.read()
 
-# Make global a multiple of local
-global_ = (roundup(M_XL // WPTM, local[0]), roundup(N_XL // WPTN, local[1]))
+kernel_source = f"""
+#define TSM {TSM}
+#define TSN {TSN}
+#define TSK {TSK}
+#define WPTM {WPTM}
+#define WPTN {WPTN}
+#define WIDTH {WIDTH}
+""" + kernel_source
 
-print(f"Global size: {global_}, Local size: {local}")
+program = cl.Program(ctx, kernel_source).build()
+mmul = program.mmul
+mmul.set_scalar_arg_dtypes([np.int32, np.int32, np.int32, None, None, None])
 
-# --- Run kernel ---
-start = time.time()
-prg.mmul(
-    queue,               # command queue
-    global_,             # global work size
-    local,               # local work size
-    np.int32(M_XL),      # scalar arguments
-    np.int32(N_XL),
-    np.int32(K_XL),
-    A_buf,               # cl.Buffer objects
-    B_buf,
-    C_buf
-)
+# ---------------------------
+# Run benchmark
+# ---------------------------
+start = time()
+for _ in range(COUNT):
+    mmul(
+        queue,
+        (M_XL // WPTM, N_XL // WPTN),
+        (TSM // WPTM, TSN // WPTN),
+        np.int32(M_XL),
+        np.int32(N_XL),
+        np.int32(K_XL),
+        d_A,
+        d_B,
+        d_C
+    )
 queue.finish()
-end = time.time()
+elapsed = time() - start
 
-# --- Copy result back ---
-cl.enqueue_copy(queue, C_pad, C_buf)
-C = C_pad[:M, :N]  # remove padding
+# ---------------------------
+# Copy and unpad results
+# ---------------------------
+cl.enqueue_copy(queue, h_C, d_C)
+h_C_final = h_C[:M, :N]
 
-# --- Compute expected sum for verification ---
-expected = np.sum(A @ B)
+# ---------------------------
+# Compute GFLOPS
+# ---------------------------
+mflop = COUNT * 2.0 * M * N * K / 1e9
+gflops = mflop / elapsed
 
-# --- Print random samples ---
-print("Random samples:")
-for _ in range(10):
-    i, j = np.random.randint(0, M), np.random.randint(0, N)
-    print(f"C[{i},{j}] = {C[i,j]}")
-
-print(f"\nExpected (approx): {expected:.6e}")
-elapsed = end - start
-print(f"\nTime: {elapsed:.4f} s")
-
-# --- GFLOPS ---
-gflops = 2 * M * N * K / (elapsed * 1e9)
-print(f"Performance: {gflops:.2f} GFLOPS")
+print(f"Time: {elapsed*1000:.2f} ms, Performance: {gflops:.2f} GFLOPS")
+print("Sample results (some elements):")
+print(h_C_final[0, :5])

@@ -1,78 +1,134 @@
-#pragma OPENCL EXTENSION cl_khr_fp64 : enable
-
-#define WIDTH 4          // float4
+// kernel_10.cl
+#if WIDTH == 1
+typedef float floatX;
+#elif WIDTH == 2
+typedef float2 floatX;
+#elif WIDTH == 4
 typedef float4 floatX;
-
-#define TSM 32           // Tile size in M
-#define TSN 32           // Tile size in N
-#define TSK 16           // Tile size in K
-#define WPTM 4           // Work per thread in M
-#define WPTN 4           // Work per thread in N
+#endif
 
 #define RTSM (TSM/WPTM)
 #define RTSN (TSN/WPTN)
+#define LPTA ((TSK*TSM)/(RTSM*RTSN))
+#define LPTB ((TSK*TSN)/(RTSM*RTSN))
 
+// -----------------------------------------------------------
+// Matrix multiplication with prefetching and 2D register blocking
+// -----------------------------------------------------------
 __kernel void mmul(
-    const int M_XL, const int N_XL, const int K_XL,
+    const int M_XL,
+    const int N_XL,
+    const int K_XL,
     const __global floatX* A,
     const __global floatX* B,
-    __global float* C)
-{
+    __global float* C
+) {
+    // Thread identifiers
     const int tidm = get_local_id(0);
     const int tidn = get_local_id(1);
-    const int groupM = get_group_id(0);
-    const int groupN = get_group_id(1);
-    const int offsetM = groupM * TSM;
-    const int offsetN = groupN * TSN;
+    const int offsetM = TSM*get_group_id(0);
+    const int offsetN = TSN*get_group_id(1);
 
-    __local float Asub[2][TSK * TSM];  // double-buffered
-    __local float Bsub[2][TSK * TSN];
+    // Double-buffered local memory for prefetch
+    __local float Asub[2][TSK*TSM];
+    __local float Bsub[2][TSK*TSN];
 
-    float acc[WPTM][WPTN] = {0.0f};
+    // Registers
+    float Areg;
+    float Breg[WPTN];
+    float acc[WPTM][WPTN];
+
+    // Init accumulators
+    for (int wm=0; wm<WPTM; wm++)
+        for (int wn=0; wn<WPTN; wn++)
+            acc[wm][wn] = 0.0f;
 
     int numTiles = K_XL / TSK;
 
-    for (int t = 0; t < numTiles; t++)
-    {
-        // Load tile of A
-        for (int la = 0; la < (TSM*TSK)/(RTSM*RTSN*WIDTH); la++)
-        {
-            int id = tidn*RTSM + tidm + la*RTSM*RTSN;
-            int row = id % (TSM/WIDTH);
-            int col = id / (TSM/WIDTH);
-            int globalRow = offsetM + row;
-            int globalCol = t*TSK + col*WIDTH;
-            floatX val = (globalRow < M_XL && globalCol < K_XL) ?
-                         A[globalRow*K_XL/WIDTH + globalCol/WIDTH] : (floatX)(0.0f);
-            ((floatX*)Asub[t%2])[row*TSK + col] = val;
-        }
+    // Load first tile (tile 0)
+    for (int la=0; la<LPTA/WIDTH; la++) {
+        int tid = tidn*RTSM + tidm;
+        int id = la*RTSN*RTSM + tid;
+        int row = id % (TSM/WIDTH);
+        int col = id / (TSM/WIDTH);
+        int tiledIndex = col + 0*TSK;
 
-        // Load tile of B
-        for (int lb = 0; lb < (TSN*TSK)/(RTSM*RTSN*WIDTH); lb++)
-        {
-            int id = tidn*RTSM + tidm + lb*RTSM*RTSN;
-            int row = id % (TSK);
-            int col = id / (TSK);
-            int globalRow = t*TSK + row;
-            int globalCol = offsetN + col*WIDTH;
-            floatX val = (globalRow < K_XL && globalCol < N_XL) ?
-                         B[globalRow*N_XL/WIDTH + globalCol/WIDTH] : (floatX)(0.0f);
-            ((floatX*)Bsub[t%2])[row*TSN + col] = val;
+        floatX vecA = A[tiledIndex*(M_XL/WIDTH) + offsetM/WIDTH + row];
+        floatX vecB = B[tiledIndex*(N_XL/WIDTH) + offsetN/WIDTH + row];
+
+#if WIDTH == 1
+        Asub[0][col*TSM + row] = vecA;
+        Bsub[0][col*TSN + row] = vecB;
+#elif WIDTH == 2
+        Asub[0][col*TSM + 2*row + 0] = vecA.x;
+        Asub[0][col*TSM + 2*row + 1] = vecA.y;
+        Bsub[0][col*TSN + 2*row + 0] = vecB.x;
+        Bsub[0][col*TSN + 2*row + 1] = vecB.y;
+#elif WIDTH == 4
+        Asub[0][col*TSM + 4*row + 0] = vecA.x;
+        Asub[0][col*TSM + 4*row + 1] = vecA.y;
+        Asub[0][col*TSM + 4*row + 2] = vecA.z;
+        Asub[0][col*TSM + 4*row + 3] = vecA.w;
+
+        Bsub[0][col*TSN + 4*row + 0] = vecB.x;
+        Bsub[0][col*TSN + 4*row + 1] = vecB.y;
+        Bsub[0][col*TSN + 4*row + 2] = vecB.z;
+        Bsub[0][col*TSN + 4*row + 3] = vecB.w;
+#endif
+    }
+
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    for (int t=0; t<numTiles; t++) {
+        int tile_idx = t % 2;
+        int next_tile = (t+1) % 2;
+
+        // Prefetch next tile
+        if (t+1 < numTiles) {
+            for (int la=0; la<LPTA/WIDTH; la++) {
+                int tid = tidn*RTSM + tidm;
+                int id = la*RTSN*RTSM + tid;
+                int row = id % (TSM/WIDTH);
+                int col = id / (TSM/WIDTH);
+                int tiledIndex = col + (t+1)*TSK;
+
+                floatX vecA = A[tiledIndex*(M_XL/WIDTH) + offsetM/WIDTH + row];
+                floatX vecB = B[tiledIndex*(N_XL/WIDTH) + offsetN/WIDTH + row];
+
+#if WIDTH == 1
+                Asub[next_tile][col*TSM + row] = vecA;
+                Bsub[next_tile][col*TSN + row] = vecB;
+#elif WIDTH == 2
+                Asub[next_tile][col*TSM + 2*row + 0] = vecA.x;
+                Asub[next_tile][col*TSM + 2*row + 1] = vecA.y;
+                Bsub[next_tile][col*TSN + 2*row + 0] = vecB.x;
+                Bsub[next_tile][col*TSN + 2*row + 1] = vecB.y;
+#elif WIDTH == 4
+                Asub[next_tile][col*TSM + 4*row + 0] = vecA.x;
+                Asub[next_tile][col*TSM + 4*row + 1] = vecA.y;
+                Asub[next_tile][col*TSM + 4*row + 2] = vecA.z;
+                Asub[next_tile][col*TSM + 4*row + 3] = vecA.w;
+
+                Bsub[next_tile][col*TSN + 4*row + 0] = vecB.x;
+                Bsub[next_tile][col*TSN + 4*row + 1] = vecB.y;
+                Bsub[next_tile][col*TSN + 4*row + 2] = vecB.z;
+                Bsub[next_tile][col*TSN + 4*row + 3] = vecB.w;
+#endif
+            }
         }
 
         barrier(CLK_LOCAL_MEM_FENCE);
 
-        // Multiply-accumulate
-        for (int k = 0; k < TSK; k++)
-        {
-            float Breg[WPTN];
-            for (int wn = 0; wn < WPTN; wn++)
-                Breg[wn] = Bsub[t%2][k*TSN + tidn + wn*RTSN];
-
-            for (int wm = 0; wm < WPTM; wm++)
-            {
-                float Areg = Asub[t%2][k*TSM + tidm + wm*RTSM];
-                for (int wn = 0; wn < WPTN; wn++)
+        // Compute current tile
+        for (int k=0; k<TSK; k++) {
+            for (int wn=0; wn<WPTN; wn++) {
+                int col = tidn + wn*RTSN;
+                Breg[wn] = Bsub[tile_idx][k*TSN + col];
+            }
+            for (int wm=0; wm<WPTM; wm++) {
+                int row = tidm + wm*RTSM;
+                Areg = Asub[tile_idx][k*TSM + row];
+                for (int wn=0; wn<WPTN; wn++)
                     acc[wm][wn] += Areg * Breg[wn];
             }
         }
@@ -80,18 +136,13 @@ __kernel void mmul(
         barrier(CLK_LOCAL_MEM_FENCE);
     }
 
-    // Write results
-    for (int wm = 0; wm < WPTM; wm++)
-    {
+    // Store result, respecting padded size
+    for (int wm=0; wm<WPTM; wm++) {
         int globalRow = offsetM + tidm + wm*RTSM;
-        if (globalRow < M_XL)
-        {
-            for (int wn = 0; wn < WPTN; wn++)
-            {
-                int globalCol = offsetN + tidn + wn*RTSN;
-                if (globalCol < N_XL)
-                    C[globalRow*N_XL + globalCol] = acc[wm][wn];
-            }
+        for (int wn=0; wn<WPTN; wn++) {
+            int globalCol = offsetN + tidn + wn*RTSN;
+            if (globalRow < M_XL && globalCol < N_XL)
+                C[globalCol*M_XL + globalRow] = acc[wm][wn];
         }
     }
 }
