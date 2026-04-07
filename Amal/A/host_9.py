@@ -71,7 +71,7 @@ d_C = cl.Buffer(context, mf.WRITE_ONLY, C.nbytes)
 # =========================
 # 📦 Load kernel
 # =========================
-with open("./A/kernel_9.cl") as f:
+with open("C:\\co-design\\co-design\\Amal\\A\\kernel_9.cl") as f:
     kernel_src = f.read()
 
 kernel_src = f"""

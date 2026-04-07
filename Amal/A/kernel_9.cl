@@ -15,8 +15,12 @@
 
 #define floatX float4
 
-#define A_IDX(k,m) ((k)*TSM + (m))
-#define B_IDX(k,n) ((k)*TSN + (n))
+// 🔥 add padding to kill bank conflicts
+#define PADM (TSM + 1)
+#define PADN (TSN + 1)
+
+#define A_IDX(k,m) ((k)*PADM + (m))
+#define B_IDX(k,n) ((k)*PADN + (n))
 
 __kernel void gemm_vec4_prefetch(
     const int M, const int N, const int K,
@@ -24,18 +28,15 @@ __kernel void gemm_vec4_prefetch(
     const __global floatX* B,
     __global float* C)
 {
-    // Thread IDs
     const int tidm = get_local_id(0);
     const int tidn = get_local_id(1);
 
     const int groupRow = get_group_id(0);
     const int groupCol = get_group_id(1);
 
-    // Local memory (double buffered)
-    __local float Asub[2][TSK*TSM];
-    __local float Bsub[2][TSK*TSN];
+    __local float Asub[2][TSK * PADM];
+    __local float Bsub[2][TSK * PADN];
 
-    // Registers
     float acc[WPTM][WPTN] = {0};
     float Areg;
     float Breg[WPTN];
@@ -45,85 +46,83 @@ __kernel void gemm_vec4_prefetch(
 
     const int numTiles = K / TSK;
 
-    // ============================
-    // 🔹 Load FIRST tile
-    // ============================
     int buf = 0;
 
-    for (int la = 0; la < LPTA/WIDTH; la++) {
-        int tid = tidn*RTSM + tidm;
-        int id = la*RTSN*RTSM + tid;
+    // =====================================
+    // 🔹 Load FIRST tile
+    // =====================================
+    for (int la = 0; la < LPTA / WIDTH; la++) {
 
-        int row = id % (TSM/WIDTH);
-        int col = id / (TSM/WIDTH);
+        int tid = tidn * RTSM + tidm;
+        int id  = la * RTSN * RTSM + tid;
 
-        int tiledIndex = col;
+        // ✅ A indexing (correct)
+        int rowA = id % (TSM / WIDTH);
+        int colA = id / (TSM / WIDTH);
 
-        float4 vecA = A[(tiledIndex)*(M/WIDTH) + (offsetM/WIDTH) + row];
-        float4 vecB = B[(tiledIndex)*(N/WIDTH) + (offsetN/WIDTH) + row];
+        float4 vecA = A[(colA) * (M / WIDTH) + (offsetM / WIDTH) + rowA];
 
-        // Store A
-        Asub[buf][A_IDX(col, WIDTH*row+0)] = vecA.x;
-        Asub[buf][A_IDX(col, WIDTH*row+1)] = vecA.y;
-        Asub[buf][A_IDX(col, WIDTH*row+2)] = vecA.z;
-        Asub[buf][A_IDX(col, WIDTH*row+3)] = vecA.w;
+        vstore4(vecA, 0, &Asub[buf][A_IDX(colA, rowA * WIDTH)]);
 
-        // Store B
-        Bsub[buf][B_IDX(col, WIDTH*row+0)] = vecB.x;
-        Bsub[buf][B_IDX(col, WIDTH*row+1)] = vecB.y;
-        Bsub[buf][B_IDX(col, WIDTH*row+2)] = vecB.z;
-        Bsub[buf][B_IDX(col, WIDTH*row+3)] = vecB.w;
+        // 🔥 FIX: B must use TSN (NOT TSM)
+        int rowB = id % (TSN / WIDTH);
+        int colB = id / (TSN / WIDTH);
+
+        float4 vecB = B[(colB) * (N / WIDTH) + (offsetN / WIDTH) + rowB];
+
+        vstore4(vecB, 0, &Bsub[buf][B_IDX(colB, rowB * WIDTH)]);
     }
 
     barrier(CLK_LOCAL_MEM_FENCE);
 
-    // ============================
+    // =====================================
     // 🔹 Main loop
-    // ============================
+    // =====================================
     for (int t = 0; t < numTiles; t++) {
 
-        int buf = t % 2;
+        buf = t % 2;                  // 🔥 FIX: no shadowing
         int nextBuf = (t + 1) % 2;
 
         // 🔸 Prefetch next tile
         if (t + 1 < numTiles) {
-            for (int la = 0; la < LPTA/WIDTH; la++) {
 
-                int tid = tidn*RTSM + tidm;
-                int id = la*RTSN*RTSM + tid;
+            for (int la = 0; la < LPTA / WIDTH; la++) {
 
-                int row = id % (TSM/WIDTH);
-                int col = id / (TSM/WIDTH);
+                int tid = tidn * RTSM + tidm;
+                int id  = la * RTSN * RTSM + tid;
 
-                int tiledIndex = TSK*(t+1) + col;
+                // A
+                int rowA = id % (TSM / WIDTH);
+                int colA = id / (TSM / WIDTH);
 
-                float4 vecA = A[(tiledIndex)*(M/WIDTH) + (offsetM/WIDTH) + row];
-                float4 vecB = B[(tiledIndex)*(N/WIDTH) + (offsetN/WIDTH) + row];
+                int tiledIndexA = TSK * (t + 1) + colA;
 
-                Asub[nextBuf][A_IDX(col, WIDTH*row+0)] = vecA.x;
-                Asub[nextBuf][A_IDX(col, WIDTH*row+1)] = vecA.y;
-                Asub[nextBuf][A_IDX(col, WIDTH*row+2)] = vecA.z;
-                Asub[nextBuf][A_IDX(col, WIDTH*row+3)] = vecA.w;
+                float4 vecA = A[(tiledIndexA) * (M / WIDTH) + (offsetM / WIDTH) + rowA];
 
-                Bsub[nextBuf][B_IDX(col, WIDTH*row+0)] = vecB.x;
-                Bsub[nextBuf][B_IDX(col, WIDTH*row+1)] = vecB.y;
-                Bsub[nextBuf][B_IDX(col, WIDTH*row+2)] = vecB.z;
-                Bsub[nextBuf][B_IDX(col, WIDTH*row+3)] = vecB.w;
+                vstore4(vecA, 0, &Asub[nextBuf][A_IDX(colA, rowA * WIDTH)]);
+
+                // 🔥 FIXED B
+                int rowB = id % (TSN / WIDTH);
+                int colB = id / (TSN / WIDTH);
+
+                int tiledIndexB = TSK * (t + 1) + colB;
+
+                float4 vecB = B[(tiledIndexB) * (N / WIDTH) + (offsetN / WIDTH) + rowB];
+
+                vstore4(vecB, 0, &Bsub[nextBuf][B_IDX(colB, rowB * WIDTH)]);
             }
         }
 
         // 🔸 Compute
         for (int k = 0; k < TSK; k++) {
 
-            // Load B into registers
             for (int wn = 0; wn < WPTN; wn++) {
-                int col = tidn + wn*RTSN;
+                int col = tidn + wn * RTSN;
                 Breg[wn] = Bsub[buf][B_IDX(k, col)];
             }
 
-            // Multiply
             for (int wm = 0; wm < WPTM; wm++) {
-                int row = tidm + wm*RTSM;
+                int row = tidm + wm * RTSM;
                 Areg = Asub[buf][A_IDX(k, row)];
 
                 for (int wn = 0; wn < WPTN; wn++) {
@@ -135,14 +134,16 @@ __kernel void gemm_vec4_prefetch(
         barrier(CLK_LOCAL_MEM_FENCE);
     }
 
-    // ============================
+    // =====================================
     // 🔹 Store results
-    // ============================
+    // =====================================
     for (int wm = 0; wm < WPTM; wm++) {
-        int globalRow = offsetM + tidm + wm*RTSM;
+
+        int globalRow = offsetM + tidm + wm * RTSM;
 
         for (int wn = 0; wn < WPTN; wn++) {
-            int globalCol = offsetN + tidn + wn*RTSN;
+
+            int globalCol = offsetN + tidn + wn * RTSN;
 
             C[globalRow * N + globalCol] = acc[wm][wn];
         }
