@@ -33,8 +33,10 @@ Expected: 38174.332928
 Time: 0.0554 s
 Performance: 3101.67 GFLOPS
 
+kernel_10:
 
-
+Padded sizes: M_XL=2048, N_XL=2048, K_XL=2048
+Time: 95.24 ms, Performance: 3607.71 GFLOPS
 
 Notes :
 🧠 RTX 3050 Key Facts (what matters for tuning)

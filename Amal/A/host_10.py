@@ -5,9 +5,9 @@ from time import time
 # ---------------------------
 # User-configurable parameters
 # ---------------------------
-M = 2048
-N = 2048
-K = 2048
+M = 8192
+N = 8192
+K = 8192
 
 TSM = 128   # Tile size in M
 TSN = 128   # Tile size in N
@@ -70,25 +70,41 @@ kernel_source = f"""
 """ + kernel_source
 
 program = cl.Program(ctx, kernel_source).build()
-mmul = program.mmul
-mmul.set_scalar_arg_dtypes([np.int32, np.int32, np.int32, None, None, None])
+mmul = program.kernel_10  # Use the correct kernel function name from kernel_10.cl
+
+# ---------------------------
+# Set kernel argument types (9 arguments)
+# ---------------------------
+mmul.set_scalar_arg_dtypes([
+    np.int32,  # M_XL
+    np.int32,  # N_XL
+    np.int32,  # K_XL
+    np.int32,  # M
+    np.int32,  # N
+    np.int32,  # K
+    None,      # d_A buffer
+    None,      # d_B buffer
+    None       # d_C buffer
+])
+
+# ---------------------------
+# Global and local work sizes
+# ---------------------------
+# Thread-block (local) size
+local_size = (TSM // WPTM, TSN // WPTN)
+
+# Global size rounded to full tiles
+global_size = (M_XL // WPTM, N_XL // WPTN)
 
 # ---------------------------
 # Run benchmark
 # ---------------------------
 start = time()
 for _ in range(COUNT):
-    mmul(
-        queue,
-        (M_XL // WPTM, N_XL // WPTN),
-        (TSM // WPTM, TSN // WPTN),
-        np.int32(M_XL),
-        np.int32(N_XL),
-        np.int32(K_XL),
-        d_A,
-        d_B,
-        d_C
-    )
+    mmul(queue, global_size, local_size,
+         M_XL, N_XL, K_XL,  # Padded sizes
+         M, N, K,           # Original sizes
+         d_A, d_B, d_C)
 queue.finish()
 elapsed = time() - start
 
@@ -105,5 +121,5 @@ mflop = COUNT * 2.0 * M * N * K / 1e9
 gflops = mflop / elapsed
 
 print(f"Time: {elapsed*1000:.2f} ms, Performance: {gflops:.2f} GFLOPS")
-print("Sample results (some elements):")
+print("Sample results (first 5 elements of first row):")
 print(h_C_final[0, :5])
