@@ -9,7 +9,6 @@
 
 #define RTSM (TSM/WPTM)
 #define RTSN (TSN/WPTN)
-
 #define LPTA ((TSK*TSM)/(RTSM*RTSN))
 #define LPTB ((TSK*TSN)/(RTSM*RTSN))
 

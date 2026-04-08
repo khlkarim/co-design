@@ -1,4 +1,7 @@
 kernel 9 :
+
+=============================
+
 Random samples:
 C[462,878] = 38175.18359375
 C[323,707] = 38175.18359375
@@ -15,6 +18,12 @@ Expected: 38174.332928
 
 Time: 0.0557 s
 Performance: 3082.69 GFLOPS
+
+==============================
+
+
+
+==============================
 
 Random samples:
 C[441,343] = 38175.18359375
@@ -33,10 +42,60 @@ Expected: 38174.332928
 Time: 0.0554 s
 Performance: 3101.67 GFLOPS
 
+===============================
+
+
+===============================
+
+uv run host_9.py
+warning: `VIRTUAL_ENV=C:/Program Files/Git/cygdrive/c/co-design/co-design/.venv` does not match the project environment path `C:\co-design\co-design\.venv` and will be ignored; use `--active` to target the active environment instead
+Choose platform:
+[0] <pyopencl.Platform 'NVIDIA CUDA' at 0x210ff5b4360>
+[1] <pyopencl.Platform 'Intel(R) OpenCL Graphics' at 0x210f1bd8f40>
+[2] <pyopencl.Platform 'Intel(R) OpenCL' at 0x210eed60bb0>
+Choice [0]:
+Choosing only available device: <pyopencl.Device 'NVIDIA GeForce RTX 3050 6GB Laptop GPU' on 'NVIDIA CUDA' at 0x210ff5b4400>
+Set the environment variable PYOPENCL_CTX='' to avoid being asked again.
+Running kernel...
+
+Random samples:
+C[5032,2414] = 152703.171875
+C[4673,2344] = 152703.171875
+C[5844,6895] = 152703.171875
+C[3518,5379] = 152703.171875
+C[4682,5113] = 152703.171875
+C[6341,3217] = 152703.171875
+C[3969,950] = 152703.171875
+C[4406,3756] = 152703.171875
+C[3487,5102] = 152703.171875
+C[1919,6926] = 152703.171875
+
+Expected: 152697.331712
+
+Time: 2.7082 s
+Performance: 4060.01 GFLOPS
+
+===============================
+
+
 kernel_10:
 
 Padded sizes: M_XL=2048, N_XL=2048, K_XL=2048
 Time: 95.24 ms, Performance: 3607.71 GFLOPS
+
+uv run host_10.py
+warning: `VIRTUAL_ENV=C:/Program Files/Git/cygdrive/c/co-design/co-design/.venv` does not match the project environment path `C:\co-design\co-design\.venv` and will be ignored; use `--active` to target the active environment instead
+Padded sizes: M_XL=8192, N_XL=8192, K_XL=8192
+Choose platform:
+[0] <pyopencl.Platform 'NVIDIA CUDA' at 0x242f92ca1a0>
+[1] <pyopencl.Platform 'Intel(R) OpenCL Graphics' at 0x242f92ccda0>
+[2] <pyopencl.Platform 'Intel(R) OpenCL' at 0x242fb5346c0>
+Choice [0]:
+Choosing only available device: <pyopencl.Device 'NVIDIA GeForce RTX 3050 6GB Laptop GPU' on 'NVIDIA CUDA' at 0x242f92ca240>
+Set the environment variable PYOPENCL_CTX='' to avoid being asked again.
+Time: 4853.39 ms, Performance: 4530.91 GFLOPS
+Sample results (first 5 elements of first row):
+[152703.17 152703.17 152703.17 152703.17 152703.17]
 
 Notes :
 🧠 RTX 3050 Key Facts (what matters for tuning)
