@@ -1,81 +1,82 @@
-# host_best.py -- PyOpenCL host for high-performance SGEMM
+# host_best_optimized.py -- PyOpenCL host for high-performance SGEMM
 import numpy as np
 import pyopencl as cl
 import math, os, random
 from time import perf_counter
 
 # ==========================
-# Tuning parameters
+# Problem sizes
 # ==========================
 M = 8192
 N = 8192
 K = 8192
 
+# ==========================
+# Kernel tuning parameters
+# ==========================
 TSM  = 128
 TSN  = 128
-TSK  = 16
+TSK  = 32   # increased for higher arithmetic intensity
 WPTM = 8
 WPTN = 8
 WIDTH = 4
-COUNT = 30
+COUNT = 20
 
 RTSM = TSM // WPTM
 RTSN = TSN // WPTN
 
 # ==========================
-# Padding
+# Padding utility
 # ==========================
-def pad_up(x, m):
-    return math.ceil(x/m)*m
+def pad_up(x, tile):
+    return ((x + tile - 1)//tile)*tile
 
 M_pad = pad_up(M, TSM)
 N_pad = pad_up(N, TSN)
 K_pad = pad_up(K, TSK)
 
 # ==========================
-# Test matrices
+# Host matrices
 # ==========================
 AVAL = 3.257
 BVAL = 5.723
 expected = K*AVAL*BVAL
 
-A_np = np.full((M, K), AVAL, dtype=np.float32)
-B_np = np.full((K, N), BVAL, dtype=np.float32)
-
-# Pad
+# Allocate padded arrays
 A_pad = np.zeros((M_pad, K_pad), dtype=np.float32)
-A_pad[:M, :K] = A_np
 B_pad = np.zeros((K_pad, N_pad), dtype=np.float32)
-B_pad[:K, :N] = B_np
+A_pad[:M, :K] = AVAL
+B_pad[:K, :N] = BVAL
 
-# Pack as float4 (column-major)
-A_flat = A_pad.T.reshape(K_pad, M_pad//4, 4).reshape(-1)
-B_flat = B_pad.T.reshape(N_pad, K_pad//4, 4).reshape(-1)
+# Pack as K-major float4 for coalesced loads
+A_flat = A_pad.T.reshape(K_pad, M_pad//WIDTH, WIDTH).reshape(-1)
+B_flat = B_pad.T.reshape(K_pad, N_pad//WIDTH, WIDTH).reshape(-1)
 
 C_np = np.empty((M, N), dtype=np.float32)
 
 # ==========================
 # OpenCL setup
 # ==========================
-context = cl.create_some_context(interactive=False)
-device  = context.devices[0]
-queue   = cl.CommandQueue(context)
+ctx = cl.create_some_context(interactive=False)
+device = ctx.devices[0]
+queue  = cl.CommandQueue(ctx)
 
 print(f"Device : {device.name}, Local mem: {device.local_mem_size//1024} KB")
 
 mf = cl.mem_flags
-d_A = cl.Buffer(context, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=A_flat)
-d_B = cl.Buffer(context, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=B_flat)
-d_C = cl.Buffer(context, mf.WRITE_ONLY, C_np.nbytes)
+d_A = cl.Buffer(ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=A_flat)
+d_B = cl.Buffer(ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=B_flat)
+d_C = cl.Buffer(ctx, mf.WRITE_ONLY, C_np.nbytes)
 
 # ==========================
 # Load kernel
 # ==========================
 script_dir  = os.path.dirname(os.path.abspath(__file__))
 kernel_path = os.path.join(script_dir, "kernel_best.cl")
-with open(kernel_path, "r") as f:
+with open(kernel_path, "r", encoding="utf-8") as f:
     KERNEL_CODE = f.read()
 
+# Inject defines
 defines = f"""
 #define WIDTH {WIDTH}
 #define TSM {TSM}
@@ -85,18 +86,23 @@ defines = f"""
 #define WPTN {WPTN}
 """
 
-build_opts = ["-cl-fast-relaxed-math", "-cl-mad-enable",
-              "-cl-no-signed-zeros", "-cl-unsafe-math-optimizations"]
+# Build program with fast math
+build_opts = [
+    "-cl-fast-relaxed-math",
+    "-cl-mad-enable",
+    "-cl-no-signed-zeros",
+    "-cl-unsafe-math-optimizations"
+]
 
-program = cl.Program(context, defines + KERNEL_CODE).build(options=build_opts)
+program = cl.Program(ctx, defines + KERNEL_CODE).build(options=build_opts)
 kernel = program.gemm_kernel_best
 kernel.set_scalar_arg_dtypes([np.int32,np.int32,np.int32,np.int32,np.int32,None,None,None])
 
 # ==========================
-# Launch configuration
+# NDRange configuration
 # ==========================
-local_size = (RTSM, RTSN)
-global_size = ((M_pad//TSM)*RTSM, (N_pad//TSN)*RTSN)
+local_size  = (RTSM, RTSN)
+global_size = ((M_pad//WPTM)//RTSM*RTSM, (N_pad//WPTN)//RTSN*RTSN)  # rounded up to multiples
 
 def run_kernel():
     evt = kernel(queue, global_size, local_size,
