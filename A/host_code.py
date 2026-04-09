@@ -13,10 +13,10 @@ def read_int(prompt, fallback=None):
 
 
 # Number of matrix multiplication to perform
-COUNT = 20
+COUNT = 1
 
 # Matrix dimensions
-DEFAULT_DIM = 2048
+DEFAULT_DIM = 8192
 
 M = read_int(f"M (default: {DEFAULT_DIM}): ", DEFAULT_DIM)
 N = read_int(f"N (default: {DEFAULT_DIM}): ", DEFAULT_DIM)
@@ -27,7 +27,7 @@ sizeB = K * N
 sizeC = M * N
 
 # Number of MFLOP to be performed
-mflop = COUNT * 2.0 * M * N * K / 1000000.0  # 2.0 because one multiplication and one addition
+gflop = COUNT * 2.0 * M * N * K / 1e9  # 2.0 because one multiplication and one addition
 
 # Dummy data: All the elements in each matrix are the equal
 AVAL = 3.257
@@ -55,7 +55,7 @@ DEFAULT_TSM = 128
 TSM = DEFAULT_TSM  # The tile-size in dimension M
 DEFAULT_TSN = 128
 TSN = DEFAULT_TSN  # The tile-size in dimension N
-DEFAULT_TSK = 16
+DEFAULT_TSK = 32
 TSK = DEFAULT_TSK  # The tile-size in dimension K
 DEFAULT_WPTM = 8
 WPTM = DEFAULT_WPTM  # The work-per-thread in dimension M
@@ -184,8 +184,8 @@ run_time = time() - start_time
 
 print("End of", COUNT, "Matrix Multiplications...")
 
-mflops = mflop / run_time
-print(run_time, "seconds at", mflops, "MFLOPS")
+gflops = gflop / run_time
+print(run_time, "seconds at", gflops, "GFLOPS")
 
 # Reading the result h_C
 cl.enqueue_copy(queue, h_C, d_c)
