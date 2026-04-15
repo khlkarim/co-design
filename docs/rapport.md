@@ -40,10 +40,14 @@ Ce kernel calcule la multiplication matricielle en associant strictement un thre
 **Explication :**
 Ce kernel implémente deux optimisations de performance majeures pour contourner les limitations de la mémoire globale :
 1. **Workgroup Tiling** : Les matrices A et B sont découpées en tuiles (sous-matrices). Les threads chargent ces tuiles de manière coopérative dans la **mémoire locale** partagée (`__local`). Chaque élément récupéré dans la mémoire globale est réutilisé plusieurs fois par d'autres threads au sein du même groupe de travail, réduisant drastiquement les défauts de cache et la latence de la mémoire globale.
-2. **Wider Data-Types** : Au lieu de récupérer un flottant (`float`) à la fois, nous utilisons `float4` (un type vectoriel intégré de 4 flottants). Cela permet d'effectuer des transactions mémoire plus larges (128 bits), augmentant ainsi la saturation du bus mémoire et parallélisant les chargements.
 
 ![Tiled & Wide Data-Types Diagram](../assets/A-tiled-explanation.png)
 *Figure 3 : Schéma d'explication du tuilage par mémoire locale et de la vectorisation des accès.*
+
+2. **Wider Data-Types** : Au lieu de récupérer un flottant (`float`) à la fois, nous utilisons `float4` (un type vectoriel intégré de 4 flottants). Cela permet d'effectuer des transactions mémoire plus larges (128 bits), augmentant ainsi la saturation du bus mémoire et parallélisant les chargements.
+
+![Wider Data-Types Diagram](../assets/A-wider-data-types-explanation.png)
+*Figure 4 : Schéma d'explication de la vectorisation des accès.*
 
 **Performances :**
 - Temps d'exécution : ~0,358 secondes
