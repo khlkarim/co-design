@@ -132,7 +132,7 @@ Une implémentation idéale de cette division de données, qui s'alignerait rigo
 ![GPU Alone vs GPU + CPU Barchart](../assets/B-performane-evolution-gflops.png)
 *Figure 13 : Diagramme à bandes récapitulatif comparant la force de calcul du périphérique combiné par rapport au mode isolé.*
 
-![GPU Alone vs GPU + CPU Barchart](../assets/B-exection-time.png)
+![GPU Alone vs GPU + CPU Barchart](../assets/B-execution-time.png)
 *Figure 14 : Diagramme à bandes récapitulatif comparant le temps d'exécution du périphérique combiné par rapport au mode isolé.*
 
 ---
