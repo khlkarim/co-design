@@ -27,7 +27,7 @@ Ce kernel calcule la multiplication matricielle en associant strictement un thre
 - Débit : **356 GFLOPS**
 - *Ceci nous sert de performance de référence (baseline).*
 
-![Unoptimized Coalesced Kernel Performance](../assets/A-0.png)
+![Unoptimized Coalesced Kernel Performance](../assets/A-0-highlighted.png)
 *Figure 2 : Résultats des performances pour le kernel coalescé de base.*
 
 ### 2. Première Optimisation : Workgroup Tiling & Wider Data-Types (`kernel_4.cl`)
@@ -43,7 +43,7 @@ Ce kernel implémente deux optimisations de performance majeures pour contourner
 - Temps d'exécution : ~0,358 secondes
 - Débit : **958 GFLOPS** (Accélération de 2,69x par rapport à la référence)
 
-![Tiled & Wide Data-Types Performance](../assets/A-1.png)
+![Tiled & Wide Data-Types Performance](../assets/A-1-highlighted.png)
 *Figure 4 : Amélioration des performances suite au tuilage et à l'utilisation de types élargis.*
 
 ### 3. Deuxième Optimisation : 2D Register Blocking (`kernel_6.cl`)
@@ -57,7 +57,7 @@ S'appuyer uniquement sur la mémoire locale entraîne tout de même une certaine
 - Temps d'exécution : ~0,194 secondes
 - Débit : **1748 GFLOPS** (Accélération de 4,90x par rapport à la référence)
 
-![Register Blocking Performance](../assets/A-2.png)
+![Register Blocking Performance](../assets/A-2-highlighted.png)
 *Figure 6 : Amélioration des performances grâce au tuilage par registres.*
 
 ### 4. Kernel Entièrement Optimisé (`kernel_7.cl`)
@@ -68,7 +68,7 @@ En combinant l'ensemble des approches précédentes, ce kernel entièrement opti
 - Temps d'exécution : ~0,164 secondes
 - Débit : **2087 GFLOPS** (Accélération de 5,85x par rapport à la référence)
 
-![Optimized Kernel Performance](../assets/A-3.png)
+![Optimized Kernel Performance](../assets/A-3-highlighted.png)
 *Figure 7 : Résultats de performance pour le kernel utilisant toutes les optimisations combinées.*
 
 ### 5. Récapitulatif des performances
@@ -115,7 +115,7 @@ En prenant comme base nos indications mesurées (~82 GFLOPS contre ~1039 GFLOPS)
 **Performances :**
 Une implémentation idéale de cette division de données, qui s'alignerait rigoureusement aux proportions d'efficience stipulées plus haut, entraîne un gain critique en capacité de débits de calcul. Cette démarche valorise grandement la synergie d'exécution concurrente des deux files de requêtes contextuelles ("command queues"), qui ont la faculté native de masquer les temps de transfert des données en mémoire en les superposant à l'exécution simultanée du CPU et du GPU.
 
-![GPU alone Performance](../assets/gpu-alone.png)
+![GPU alone Performance](../assets/B-gpu-alone-highlighted.png)
 *Figure 11 : Performances repères en utilisant exclusivement le GPU non-coalescé.*
 
 ![GPU + CPU Performance](../assets/gpu+cpu.png)
