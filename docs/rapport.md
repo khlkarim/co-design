@@ -54,7 +54,7 @@ Ce kernel implémente deux optimisations pour contourner les limitations de la m
 
 **Performances :**
 - Temps d'exécution : ~22.47 secondes
-- Débit : **978 GFLOPS** (Accélération de 2,69x par rapport à la référence)
+- Débit : **978 GFLOPS** (Accélération de 1,68x par rapport à la référence)
 
 ![Tiled & Wide Data-Types Performance](../assets/A-1-amal-wider-data-types-highlighted.png)
 *Figure 4 : Amélioration des performances suite au tuilage et à l'utilisation de types élargis.*
@@ -68,7 +68,7 @@ S'appuyer uniquement sur la mémoire locale entraîne tout de même une certaine
 
 **Performances :**
 - Temps d'exécution : ~6.01 secondes
-- Débit : **3658 GFLOPS** (Accélération de 4,90x par rapport à la référence)
+- Débit : **3658 GFLOPS** (Accélération de 6,29x par rapport à la référence)
 
 ![Register Blocking Performance](../assets/A-2-amal-register-tiling-highlighted.png)
 *Figure 6 : Amélioration des performances grâce au tuilage par registres.*
@@ -79,7 +79,7 @@ En combinant l'ensemble des approches précédentes, ce kernel exploite le **Tui
 
 **Performances et Évolution :**
 - Temps d'exécution : ~5.26 secondes
-- Débit : **4180 GFLOPS** (Accélération de 5,85x par rapport à la référence)
+- Débit : **4180 GFLOPS** (Accélération de 7,19x par rapport à la référence)
 
 ![Optimized Kernel Performance](../assets/A-3-amal-full-highlighted.png)
 *Figure 8 : Résultats de performance pour le kernel utilisant toutes les optimisations combinées.*
