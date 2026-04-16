@@ -104,7 +104,7 @@ Afin de concevoir et justifier un ratio de répartition cohérent et optimal, no
 | Périphérique | Méthode Appliquée | Débit (GFLOPS) |
 |---|---|---|
 | GPU NVIDIA Dédié | NON-COALESCÉ | ~81,88 GFLOPS |
-| GPU Intégré (iGPU) | Optimisé (Paramètres de kernel_7) | ~1039,0 GFLOPS |
+| GPU Intégré (iGPU) | Optimisé (Paramètres de kernel_7) | ~86,99 GFLOPS |
 
 *Tableau 1 : Comparaison de la puissance de calcul indépendante (en GFLOPS) en fonction du périphérique opéré. Taille de matrice N=8192.*
 
@@ -119,7 +119,7 @@ Pour faire en sorte que les deux périphériques terminent en même temps (limit
 - $Split_{CPU} = \frac{P_{CPU}}{P_{CPU} + P_{GPU}}$
 - $Split_{GPU} = \frac{P_{GPU}}{P_{CPU} + P_{GPU}}$
 
-En prenant comme base nos indications mesurées (~82 GFLOPS contre ~1039 GFLOPS), la méthode de répartition optimale consisterait à déléguer à peu près 92,6 % du travail conjoint au CPU/iGPU intégré, et seulement 7,4 % à l'imposant GPU NVIDIA Dédié. Or, la division arbitraire implantée nativement dans la base de code fixe initialement 15/32 du travail en faveur du GPU, et seulement 17/32 au CPU. Cela forme l'exact inverse d'une approche d'optimisation logique, forçant un fardeau démesuré sur notre GPU lent (limité pour l'occasion par des accès non-coalescés), ce qui ne parvient alors à générer qu'une accélération minime, voire souvent une pure perte de rendement.
+En prenant comme base nos indications mesurées (~82 GFLOPS contre ~87 GFLOPS), la méthode de répartition optimale consisterait à déléguer environ 51,7 % du travail conjoint à l'iGPU intégré, et seulement 48,3 % au GPU NVIDIA Dédié. Cela forme l'inverse de l'approche d'optimisation logique, forçant un fardeau démesuré sur notre GPU lent (limité pour l'occasion par des accès non-coalescés), ce qui ne parvient alors à générer qu'une accélération minime, voire souvent une pure perte de rendement.
 
 ![Split execution diagram](../assets/B-split-strategy-diagram.png)
 *Figure 11 : Représentation visuelle de la stratégie de répartition de charge de travail.*
