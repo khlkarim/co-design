@@ -73,23 +73,7 @@ S'appuyer uniquement sur la mémoire locale entraîne tout de même une certaine
 ![Register Blocking Performance](../assets/A-2-amal-register-blocking-highlighted.png)
 *Figure 6 : Amélioration des performances grâce au tuilage par registres.*
 
-### 4. Quatrième Optimisation : Software Pre-fetching (`kernel_9.cl`)
-**Explication :**
-Pendant que le kernel effectue les calculs sur la tuile courante, les threads chargent déjà la tuile suivante dans la mémoire locale. Cette superposition permet de cacher la latence des instructions mémoire derrière les calculs.
-
-Nous utilisons une approche de **double buffering**, allouant deux fois plus de mémoire locale pour stocker à la fois la tuile courante et la tuile suivante (`Asub[2][...]` et `Bsub[2][...]`). L'algorithme se structure alors ainsi :
-1. Avant le début de la boucle principale, charger la toute première tuile dans les variables locales et opérer une première synchronisation.
-2. Au sein de la boucle principale, charger immédiatement la tuile suivante en s'appuyant sur l'indice du tampon alterné.
-3. Effectuer la multiplication matricielle et les calculs d'accumulation sur la tuile préalablement récupérée, ce qui permet l'overlap asynchrone des deux traitements.
-
-**Performances :**
-- Temps d'exécution : ~5.26 secondes
-- Débit : **4180 GFLOPS**
-
-![Prefetching Kernel Performance](../assets/A-prefetching-highlighted.png)
-*Figure 7 : Résultats de performance pour le kernel utilisant le prefetching.*
-
-### 5. Kernel Entièrement Optimisé (`kernel_7.cl`)
+### 4. Kernel Entièrement Optimisé (`kernel_7.cl`)
 **Explication :**
 En combinant l'ensemble des approches précédentes, ce kernel exploite le **Tuilage par Workgroup** en mémoire locale, couplé avec des **chargements élargis (`float4`)** et un **Tuilage par Registres en 2D** (`8x8 éléments calculés par thread`). Les chargements vectorisés diminuent le nombre de transactions vers la mémoire locale, tandis que l'utilisation des registres permet de maintenir les pipelines de calcul occupés sans avoir à attendre les réponses du cache. Cette combinaison synergique offre un parallélisme optimal au niveau des instructions et permet une efficience maximale des pipelines du GPU.
 
