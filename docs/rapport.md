@@ -5,7 +5,7 @@
 ### Objectif
 Explorer les techniques d'optimisation matérielles appliquées à un calcul intensif standard: la multiplication matricielle. 
 
-Dans un premier temps, nous détaillerons les caractéristiques de notre environnement matériel d'exécution. Ensuite, à travers la Partie A, nous évaluerons progressivement l'impact de différentes approches d'optimisation (tuilage en mémoire locale, utilisation de types vectoriels pour élargir la bande passante, et tuilage par registres) sur un kernel OpenCL, en comparaison avec un kernel aux accès mémoire uniquement coalescés. Enfin, la Partie B sera dédiée à l'étude de la répartition de cette charge de calcul au sein d'un système hétérogène (impliquant à la fois un GPU dédié et un processeur graphique intégré). Cette dernière phase mettra en lumière l'importance de concevoir une stratégie de répartition du travail rigoureusement équilibrée pour tirer pleinement profit des ressources physiques sous-jacentes.
+Dans un premier temps, nous détaillerons les caractéristiques de notre environnement matériel d'exécution. Ensuite, à travers la Partie A, nous évaluerons progressivement l'impact de différentes approches d'optimisation (tuilage en mémoire locale, utilisation de types vectoriels pour élargir la bande passante, et tuilage par registres) sur un kernel OpenCL, en comparaison avec un kernel aux accès mémoire uniquement coalescés. Enfin, la Partie B sera dédiée à l'étude de la répartition de cette charge de calcul au sein d'un système hétérogène impliquant à la fois un GPU dédié et un processeur graphique intégré. Cette dernière phase mettra en lumière l'importance de concevoir une stratégie de répartition du travail équilibrée pour tirer pleinement profit des ressources physiques sous-jacentes.
 
 ---
 
@@ -41,13 +41,13 @@ Ce kernel calcule la multiplication matricielle en associant strictement un thre
 
 ### 2. Première Optimisation : Workgroup Tiling & Wider Data-Types (`kernel_4.cl`)
 **Explication :**
-Ce kernel implémente deux optimisations de performance majeures pour contourner les limitations de la mémoire globale :
+Ce kernel implémente deux optimisations pour contourner les limitations de la mémoire globale :
 1. **Workgroup Tiling** : Les matrices A et B sont découpées en tuiles (sous-matrices). Les threads chargent ces tuiles de manière coopérative dans la **mémoire locale** partagée (`__local`). Chaque élément récupéré dans la mémoire globale est réutilisé plusieurs fois par d'autres threads au sein du même groupe de travail, réduisant drastiquement les défauts de cache et la latence de la mémoire globale.
 
-![Tiled & Wide Data-Types Diagram](../assets/A-tiled-explanation.png)
-*Figure 3 : Schéma d'explication du tuilage par mémoire locale et de la vectorisation des accès.*
+![Tiled Diagram](../assets/A-tiled-explanation.png)
+*Figure 3 : Schéma d'explication du tuilage par mémoire locale.*
 
-2. **Wider Data-Types** : Au lieu de récupérer un flottant (`float`) à la fois, nous utilisons `float4` (un type vectoriel intégré de 4 flottants). Cela permet d'effectuer des transactions mémoire plus larges (128 bits), augmentant ainsi la saturation du bus mémoire et parallélisant les chargements.
+2. **Wider Data-Types** : Au lieu de récupérer un flottant (`float`) à la fois, nous utilisons `float4` (un type vectoriel intégré de 4 flottants). Cela permet d'effectuer des transactions mémoire plus larges, augmentant ainsi la saturation du bus mémoire et parallélisant les chargements.
 
 ![Wider Data-Types Diagram](../assets/A-wider-data-types-explanation.png)
 *Figure 4 : Schéma d'explication de la vectorisation des accès.*
@@ -61,7 +61,7 @@ Ce kernel implémente deux optimisations de performance majeures pour contourner
 
 ### 3. Deuxième Optimisation : 2D Register Blocking (`kernel_6.cl`)
 **Explication :**
-S'appuyer uniquement sur la mémoire locale entraîne tout de même une certaine latence. Le 2D register blocking résout ce problème en faisant calculer à chaque thread plusieurs éléments de la matrice de sortie plutôt qu'un seul. En mettant en cache une sous-section de la tuile dans les **registres privés du CPU/GPU**, qui sont plus rapides que la mémoire locale, nous réduisons de façon drastique le nombre d'instructions mémoire. De plus, chaque thread étant responsable du calcul d'un bloc de 8x8 valeurs de sortie (`WPTM = 8`, `WPTN = 8`), le ratio d'intensité arithmétique est considérablement augmenté (les calculs mathématiques l'emportent largement sur les accès mémoire).
+S'appuyer uniquement sur la mémoire locale entraîne tout de même une certaine latence. Le 2D register blocking résout ce problème en faisant calculer à chaque thread plusieurs éléments de la matrice de sortie plutôt qu'un seul. En mettant en cache une sous-section de la tuile dans les **registres privés du GPU**, qui sont plus rapides que la mémoire locale, nous réduisons de façon drastique le nombre d'instructions mémoire. De plus, chaque thread étant responsable du calcul d'un bloc de 8x8 valeurs de sortie (`WPTM = 8`, `WPTN = 8`), le ratio d'intensité arithmétique est considérablement augmenté.
 
 ![Register Blocking Diagram](../assets/A-register-tiling-explanation.png)
 *Figure 5 : Représentation du partitionnement par bloc en registres 2D.*
@@ -77,7 +77,7 @@ S'appuyer uniquement sur la mémoire locale entraîne tout de même une certaine
 **Explication :**
 Pendant que le kernel effectue les calculs sur la tuile courante, les threads chargent déjà la tuile suivante dans la mémoire locale. Cette superposition permet de cacher la latence des instructions mémoire derrière les calculs.
 
-Nous utilisons une approche de **double tampon (double buffering)**, allouant deux fois plus de mémoire locale pour stocker à la fois la tuile courante et la tuile suivante (`Asub[2][...]` et `Bsub[2][...]`). L'algorithme se structure alors ainsi :
+Nous utilisons une approche de **double buffering**, allouant deux fois plus de mémoire locale pour stocker à la fois la tuile courante et la tuile suivante (`Asub[2][...]` et `Bsub[2][...]`). L'algorithme se structure alors ainsi :
 1. Avant le début de la boucle principale, charger la toute première tuile dans les variables locales et opérer une première synchronisation.
 2. Au sein de la boucle principale, charger immédiatement la tuile suivante en s'appuyant sur l'indice du tampon alterné.
 3. Effectuer la multiplication matricielle et les calculs d'accumulation sur la tuile préalablement récupérée, ce qui permet l'overlap asynchrone des deux traitements.
@@ -91,7 +91,7 @@ Nous utilisons une approche de **double tampon (double buffering)**, allouant de
 
 ### 5. Kernel Entièrement Optimisé (`kernel_7.cl`)
 **Explication :**
-En combinant l'ensemble des approches précédentes, ce kernel entièrement optimisé exploite le **Tuilage par Workgroup** en mémoire locale, couplé avec des **chargements élargis (`float4`)** et un **Tuilage par Registres en 2D** (`8x8 éléments calculés par thread`). Les chargements vectorisés diminuent le nombre de transactions vers la mémoire locale, tandis que l'utilisation des registres permet de maintenir les pipelines de calcul occupés sans avoir à attendre les réponses du cache. Cette combinaison synergique offre un parallélisme optimal au niveau des instructions et permet une efficience maximale des pipelines du processeur graphique.
+En combinant l'ensemble des approches précédentes, ce kernel exploite le **Tuilage par Workgroup** en mémoire locale, couplé avec des **chargements élargis (`float4`)** et un **Tuilage par Registres en 2D** (`8x8 éléments calculés par thread`). Les chargements vectorisés diminuent le nombre de transactions vers la mémoire locale, tandis que l'utilisation des registres permet de maintenir les pipelines de calcul occupés sans avoir à attendre les réponses du cache. Cette combinaison synergique offre un parallélisme optimal au niveau des instructions et permet une efficience maximale des pipelines du GPU.
 
 **Performances et Évolution :**
 - Temps d'exécution : ~0,164 secondes
@@ -162,8 +162,6 @@ Une implémentation idéale de cette division de données, qui s'alignerait rigo
 
 ## Conclusion
 
-En conclusion, ce laboratoire démontre de manière concrète que l'obtention de performances maximales en programmation parallèle via OpenCL passe par une maîtrise approfondie de l'architecture physique ciblée. 
-
-La Partie A prouve que la simple coalescence des accès en mémoire principale n'exploite qu'une infime réserve du potentiel du GPU. L'utilisation stratégique des divers niveaux de la hiérarchie mémoire (comme l'usage de la shared local memory via le "work-group tiling" et l'exploitation des registres avec le "2D register blocking"), conjuguée à la vectorisation des accès, se révèle indispensable. Ces méthodes ont permis de consolider l'intensité arithmétique et d'accomplir une accélération du débit de traitement d'un facteur 5,85x (de 356 GFLOPS à près de 2087 GFLOPS).
+En conclusion, la Partie A prouve que la simple coalescence des accès en mémoire principale n'exploite qu'une infime réserve du potentiel du GPU. L'utilisation stratégique des divers niveaux de la hiérarchie mémoire (comme l'usage de la shared local memory via le "work-group tiling" et l'exploitation des registres avec le "2D register blocking"), conjuguée à la vectorisation des accès, se révèle indispensable. Ces méthodes ont permis de consolider l'intensité arithmétique et d'accomplir une accélération du débit de traitement d'un facteur 5,85x (de 356 GFLOPS à près de 2087 GFLOPS).
 
 Par ailleurs, la Partie B met en exergue l'intérêt d'une co-exécution multi-périphériques, apte à capitaliser sur le parallélisme asynchrone des transferts mémoires (Host-to-Device) et du temps de calcul (Kernel Exec). Toutefois, nous avons clarifié qu'un tel système hétérogène ne devient un levier d'efficience qu'à la condition stricte d'intégrer une répartition des tâches pertinente et réaliste.
