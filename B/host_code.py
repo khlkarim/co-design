@@ -49,9 +49,9 @@ elif use_gpu:
     GPU_M = M
     CPU_M = 0
 else:
-    print("The CPU is going to perform its normal workload.")
+    print("The CPU is going to perform all the work.")
     GPU_M = 0
-    CPU_M = M // 16
+    CPU_M = M
 
 # Buffer sizes
 sizeB = K * N
