@@ -36,7 +36,7 @@ Ce kernel calcule la multiplication matricielle en associant strictement un thre
 - Débit : **581 GFLOPS**
 - *Ceci nous sert de performance de référence (baseline).*
 
-![Unoptimized Coalesced Kernel Performance](../assets/A-0-highlighted.png)
+![Unoptimized Coalesced Kernel Performance](../assets/A-0-amal-coalesced-highlighted.png)
 *Figure 2 : Résultats des performances pour le kernel coalescé de base.*
 
 ### 2. Première Optimisation : Workgroup Tiling & Wider Data-Types (`kernel_4.cl`)
@@ -56,7 +56,7 @@ Ce kernel implémente deux optimisations pour contourner les limitations de la m
 - Temps d'exécution : ~22.47 secondes
 - Débit : **978 GFLOPS** (Accélération de 2,69x par rapport à la référence)
 
-![Tiled & Wide Data-Types Performance](../assets/A-1-highlighted.png)
+![Tiled & Wide Data-Types Performance](../assets/A-1-amal-wider-data-types-highlighted.png)
 *Figure 4 : Amélioration des performances suite au tuilage et à l'utilisation de types élargis.*
 
 ### 3. Deuxième Optimisation : 2D Register Blocking (`kernel_6.cl`)
@@ -70,7 +70,7 @@ S'appuyer uniquement sur la mémoire locale entraîne tout de même une certaine
 - Temps d'exécution : ~6.01 secondes
 - Débit : **3658 GFLOPS** (Accélération de 4,90x par rapport à la référence)
 
-![Register Blocking Performance](../assets/A-2-highlighted.png)
+![Register Blocking Performance](../assets/A-2-amal-register-blocking-highlighted.png)
 *Figure 6 : Amélioration des performances grâce au tuilage par registres.*
 
 ### 4. Quatrième Optimisation : Software Pre-fetching (`kernel_9.cl`)
@@ -97,7 +97,7 @@ En combinant l'ensemble des approches précédentes, ce kernel exploite le **Tui
 - Temps d'exécution : ~5.26 secondes
 - Débit : **4180 GFLOPS** (Accélération de 5,85x par rapport à la référence)
 
-![Optimized Kernel Performance](../assets/A-3-highlighted.png)
+![Optimized Kernel Performance](../assets/A-3-amal-full-highlighted.png)
 *Figure 8 : Résultats de performance pour le kernel utilisant toutes les optimisations combinées.*
 
 ### 6. Récapitulatif des performances
