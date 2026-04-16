@@ -1,0 +1,251 @@
+\documentclass[12pt, a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[french]{babel}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{array}
+\usepackage{geometry}
+\usepackage{float}
+\usepackage{amsmath}
+
+\geometry{margin=1in}
+
+\title{CO-DESIGN - LAB 1: OpenCL Programming}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction}
+
+\subsection{Objectif}
+Explorer les techniques d'optimisation matérielles appliquées à un calcul intensif standard: la multiplication matricielle.
+
+Dans un premier temps, nous détaillerons les caractéristiques de notre environnement matériel d'exécution. Ensuite, à travers la Partie A, nous évaluerons progressivement l'impact de différentes approches d'optimisation (tuilage en mémoire locale, utilisation de types vectoriels pour élargir la bande passante, et tuilage par registres) sur un kernel OpenCL, en comparaison avec un kernel aux accès mémoire uniquement coalescés. Enfin, la Partie B sera dédiée à l'étude de la répartition de cette charge de calcul au sein d'un système hétérogène impliquant à la fois un GPU dédié et un processeur graphique intégré. Cette dernière phase mettra en lumière l'importance de concevoir une stratégie de répartition du travail équilibrée pour tirer pleinement profit des ressources physiques sous-jacentes.
+
+\section{Caractéristiques des Périphériques Compatibles OpenCL}
+Le PC sur lequel nous avons exécuté les kernels est équipé d'un \textbf{GPU NVIDIA GeForce RTX 3050 Laptop} avec les spécifications matérielles suivantes :
+\begin{itemize}
+    \item \textbf{Mémoire globale} : 3,68 Go
+    \item \textbf{Cache global} : 560 Ko (READ\_WRITE\_CACHE)
+    \item \textbf{Ligne de cache globale} : 128 Octets
+    \item \textbf{Mémoire locale} : 48 Ko
+    \item \textbf{Mémoire constante} : 64 Ko
+    \item \textbf{Unités de calcul (SMs)} : 20
+    \item \textbf{Taille maximale du groupe de travail (work-group size)} : 1024
+    \item \textbf{Taille maximale d'un élément de travail (work-item size)} : [1024, 1024, 64]
+    \item \textbf{Unité de synchronisation (Taille du Warp)} : 32
+\end{itemize}
+
+\section{Partie A : Optimisation du Kernel de Multiplication Matricielle}
+
+\subsection{1. Kernel Coalescé Non-Optimisé (\texttt{kernel\_1.cl})}
+Ce kernel calcule la multiplication matricielle en associant strictement un thread global à un élément de la matrice résultante C. En utilisant \texttt{get\_global\_id(0)} comme itérateur de ligne dans la boucle interne, les threads d'un même warp accèdent à des emplacements mémoire contigus. Cela introduit la \textbf{coalescence mémoire}, rendant les accès à la mémoire bien plus efficaces qu'une approche purement naïve.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{./assets/A-unoptimized-explanation.png}
+    \caption{Schéma d'exécution du kernel coalescé non-optimisé.}
+\end{figure}
+
+\textbf{Performances :}
+\begin{itemize}
+    \item Temps d'exécution : $\sim$0,963 secondes
+    \item Débit : \textbf{356 GFLOPS}
+    \item \textit{Ceci nous sert de performance de référence (baseline).}
+\end{itemize}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{./assets/A-0-highlighted.png}
+    \caption{Résultats des performances pour le kernel coalescé de base.}
+\end{figure}
+
+\subsection{2. Première Optimisation : Workgroup Tiling \& Wider Data-Types (\texttt{kernel\_4.cl})}
+\textbf{Explication :} \\
+Ce kernel implémente deux optimisations pour contourner les limitations de la mémoire globale :
+\begin{enumerate}
+    \item \textbf{Workgroup Tiling} : Les matrices A et B sont découpées en tuiles (sous-matrices). Les threads chargent ces tuiles de manière coopérative dans la \textbf{mémoire locale} partagée (\texttt{\_\_local}). Chaque élément récupéré dans la mémoire globale est réutilisé plusieurs fois par d'autres threads au sein du même groupe de travail, réduisant drastiquement les défauts de cache et la latence de la mémoire globale.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{./assets/A-tiled-explanation.png}
+    \caption{Schéma d'explication du tuilage par mémoire locale.}
+\end{figure}
+
+    \item \textbf{Wider Data-Types} : Au lieu de récupérer un flottant (\texttt{float}) à la fois, nous utilisons \texttt{float4} (un type vectoriel intégré de 4 flottants). Cela permet d'effectuer des transactions mémoire plus larges, augmentant ainsi la saturation du bus mémoire et parallélisant les chargements.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{./assets/A-wider-data-types-explanation.png}
+    \caption{Schéma d'explication de la vectorisation des accès.}
+\end{figure}
+\end{enumerate}
+
+\textbf{Performances :}
+\begin{itemize}
+    \item Temps d'exécution : $\sim$0,358 secondes
+    \item Débit : \textbf{958 GFLOPS} (Accélération de 2,69x par rapport à la référence)
+\end{itemize}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{./assets/A-1-highlighted.png}
+    \caption{Amélioration des performances suite au tuilage et à l'utilisation de types élargis.}
+\end{figure}
+
+\subsection{3. Deuxième Optimisation : 2D Register Blocking (\texttt{kernel\_6.cl})}
+\textbf{Explication :} \\
+S'appuyer uniquement sur la mémoire locale entraîne tout de même une certaine latence. Le 2D register blocking résout ce problème en faisant calculer à chaque thread plusieurs éléments de la matrice de sortie plutôt qu'un seul. En mettant en cache une sous-section de la tuile dans les \textbf{registres privés du GPU}, qui sont plus rapides que la mémoire locale, nous réduisons de façon drastique le nombre d'instructions mémoire. De plus, chaque thread étant responsable du calcul d'un bloc de 8x8 valeurs de sortie (\texttt{WPTM = 8}, \texttt{WPTN = 8}), le ratio d'intensité arithmétique est considérablement augmenté.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{./assets/A-register-tiling-explanation.png}
+    \caption{Représentation du partitionnement par bloc en registres 2D.}
+\end{figure}
+
+\textbf{Performances :}
+\begin{itemize}
+    \item Temps d'exécution : $\sim$0,194 secondes
+    \item Débit : \textbf{1748 GFLOPS} (Accélération de 4,90x par rapport à la référence)
+\end{itemize}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{./assets/A-2-highlighted.png}
+    \caption{Amélioration des performances grâce au tuilage par registres.}
+\end{figure}
+
+\subsection{4. Quatrième Optimisation : Software Pre-fetching (\texttt{kernel\_9.cl})}
+\textbf{Explication :} \\
+Pendant que le kernel effectue les calculs sur la tuile courante, les threads chargent déjà la tuile suivante dans la mémoire locale. Cette superposition permet de cacher la latence des instructions mémoire derrière les calculs.
+
+Nous utilisons une approche de \textbf{double buffering}, allouant deux fois plus de mémoire locale pour stocker à la fois la tuile courante et la tuile suivante (\texttt{Asub[2][...]} et \texttt{Bsub[2][...]}). L'algorithme se structure alors ainsi :
+\begin{enumerate}
+    \item Avant le début de la boucle principale, charger la toute première tuile dans les variables locales et opérer une première synchronisation.
+    \item Au sein de la boucle principale, charger immédiatement la tuile suivante en s'appuyant sur l'indice du tampon alterné.
+    \item Effectuer la multiplication matricielle et les calculs d'accumulation sur la tuile préalablement récupérée, ce qui permet l'overlap asynchrone des deux traitements.
+\end{enumerate}
+
+\textbf{Performances :}
+\begin{itemize}
+    \item Temps d'exécution : $\sim$0,165 secondes
+    \item Débit : \textbf{2075 GFLOPS}
+\end{itemize}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{./assets/A-prefetching-highlighted.png}
+    \caption{Résultats de performance pour le kernel utilisant le prefetching.}
+\end{figure}
+
+\subsection{5. Kernel Entièrement Optimisé (\texttt{kernel\_7.cl})}
+\textbf{Explication :} \\
+En combinant l'ensemble des approches précédentes, ce kernel exploite le \textbf{Tuilage par Workgroup} en mémoire locale, couplé avec des \textbf{chargements élargis (\texttt{float4})} et un \textbf{Tuilage par Registres en 2D} (\texttt{8x8 éléments calculés par thread}). Les chargements vectorisés diminuent le nombre de transactions vers la mémoire locale, tandis que l'utilisation des registres permet de maintenir les pipelines de calcul occupés sans avoir à attendre les réponses du cache. Cette combinaison synergique offre un parallélisme optimal au niveau des instructions et permet une efficience maximale des pipelines du GPU.
+
+\textbf{Performances et Évolution :}
+\begin{itemize}
+    \item Temps d'exécution : $\sim$0,164 secondes
+    \item Débit : \textbf{2087 GFLOPS} (Accélération de 5,85x par rapport à la référence)
+\end{itemize}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{./assets/A-3-highlighted.png}
+    \caption{Résultats de performance pour le kernel utilisant toutes les optimisations combinées.}
+\end{figure}
+
+\subsection{6. Récapitulatif des performances}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{./assets/A-performance-evolution-gflops.png}
+    \caption{Graphique de l'évolution du débit de calcul (en GFLOPS) en fonction des optimisations.}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{./assets/A-performance-evolution-ms.png}
+    \caption{Graphique de l'évolution du temps d'exécution (en millisecondes) selon les optimisations abordées.}
+\end{figure}
+
+\section{Partie B : Exécution du kernel sur de multiples périphériques OpenCL}
+
+Dans cette partie, nous allons répartir le traitement entre la carte graphique dédiée (NVIDIA RTX 3050) et la puce graphique intégrée (iGPU). Le GPU dédié se chargera d'exécuter la logique de base lente et \textbf{non-coalescée}, tandis que le périphérique intégré exécutera l'approche la plus performante (le \textbf{kernel entièrement optimisé} construit tout au long de la Partie A).
+
+\subsection{1. Performances Indépendantes (N = 8192)}
+Afin de concevoir et justifier un ratio de répartition (split) cohérent et optimal, nous avons d'abord besoin de comparer leurs performances lorsqu'ils opèrent de façon indépendante.
+
+\begin{table}[H]
+    \centering
+    \begin{tabular}{|l|l|l|}
+        \hline
+        \textbf{Périphérique} & \textbf{Méthode Appliquée} & \textbf{Débit (GFLOPS)} \\ \hline
+        GPU NVIDIA Dédié & NON-COALESCÉ & $\sim$81,88 GFLOPS \\ \hline
+        GPU Intégré (iGPU) & Optimisé (Paramètres de kernel\_7) & $\sim$1039,0 GFLOPS \\ \hline
+    \end{tabular}
+    \vspace{0.2cm}
+    \caption{Comparaison de la puissance de calcul indépendante (en GFLOPS) en fonction du périphérique opéré. Taille de matrice N=8192.}
+\end{table}
+
+\textit{Remarque : Du fait que le kernel de la carte NVIDIA repose sur des accès mémoire non-coalescés couplés à des matrices massives de N=8192, son débit s'effondre littéralement ; cela rend ce traitement inéluctablement plus lent que le kernel optimisé s'exécutant sur un périphérique autrement considéré comme moins performant en temps normal.}
+
+\subsection{2. Stratégie de Répartition ("Split Strategy")}
+\textbf{Explication :} \\
+Le but est de conférer dynamiquement le calcul de certaines sous-matrices ($M \times K$ et $K \times N$) au travers des deux périphériques OpenCL de manière concurrente. Une stratégie de répartition de charge optimale se base donc sur une attribution du calcul strictement proportionnelle à la capacité de traitement en conditions réelles de chaque appareil.
+
+Soit $P_{GPU}$ les performances intrinsèques du GPU exécutant le code non-coalescé, et $P_{CPU}$ celles du CPU/iGPU exécutant le code optimisé.
+Pour faire en sorte que les deux périphériques terminent en même temps (limitant l'impact de goulot d'étranglement), les lignes $M$ de la matrice devraient être séparées ainsi :
+\begin{itemize}
+    \item $Split_{CPU} = \frac{P_{CPU}}{P_{CPU} + P_{GPU}}$
+    \item $Split_{GPU} = \frac{P_{GPU}}{P_{CPU} + P_{GPU}}$
+\end{itemize}
+
+En prenant comme base nos indications mesurées ($\sim$82 GFLOPS contre $\sim$1039 GFLOPS), la méthode de répartition optimale consisterait à déléguer à peu près 92,6 \% du travail conjoint au CPU/iGPU intégré, et seulement 7,4 \% à l'imposant GPU NVIDIA Dédié. Or, la division arbitraire implantée nativement dans la base de code fixe initialement 15/16 du travail en faveur du GPU, et seulement 1/16 au CPU. Cela forme l'exact inverse d'une approche d'optimisation logique, forçant un fardeau démesuré sur notre GPU lent (limité pour l'occasion par des accès non-coalescés), ce qui ne parvient alors à générer qu'une accélération minime, voire souvent une pure perte de rendement.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{./assets/B-split-strategy-diagram.png}
+    \caption{Représentation visuelle de la stratégie de répartition de charge de travail.}
+\end{figure}
+
+\subsection{3. Implémentation du Split et Gains de Performance (Speedup)}
+\textbf{Performances :} \\
+Une implémentation idéale de cette division de données, qui s'alignerait rigoureusement aux proportions d'efficience stipulées plus haut, entraîne un gain critique en capacité de débits de calcul. Cette démarche valorise grandement la synergie d'exécution concurrente des deux files de requêtes contextuelles ("command queues"), qui ont la faculté native de masquer les temps de transfert des données en mémoire en les superposant à l'exécution simultanée du CPU et du GPU.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{./assets/B-gpu-alone-highlighted.png}
+    \caption{Performances repères en utilisant exclusivement le GPU non-coalescé.}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{./assets/gpu+cpu.png}
+    \caption{Performances accrues découlant de la coopération du CPU (Optimisé) et GPU (Non-Coalescé).}
+\end{figure}
+
+\subsection{4. Récapitulatif des performances}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{./assets/B-performane-evolution-gflops.png}
+    \caption{Diagramme à bandes récapitulatif comparant la force de calcul du périphérique combiné par rapport au mode isolé.}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{./assets/B-execution-time.png}
+    \caption{Diagramme à bandes récapitulatif comparant le temps d'exécution du périphérique combiné par rapport au mode isolé.}
+\end{figure}
+
+\section{Conclusion}
+
+En conclusion, la Partie A prouve que la simple coalescence des accès en mémoire principale n'exploite qu'une infime réserve du potentiel du GPU. L'utilisation stratégique des divers niveaux de la hiérarchie mémoire (comme l'usage de la shared local memory via le "work-group tiling" et l'exploitation des registres avec le "2D register blocking"), conjuguée à la vectorisation des accès, se révèle indispensable. Ces méthodes ont permis de consolider l'intensité arithmétique et d'accomplir une accélération du débit de traitement d'un facteur 5,85x (de 356 GFLOPS à près de 2087 GFLOPS).
+
+Par ailleurs, la Partie B met en exergue l'intérêt d'une co-exécution multi-périphériques, apte à capitaliser sur le parallélisme asynchrone des transferts mémoires (Host-to-Device) et du temps de calcul (Kernel Exec). Toutefois, nous avons clarifié qu'un tel système hétérogène ne devient un levier d'efficience qu'à la condition stricte d'intégrer une répartition des tâches pertinente et réaliste.
+
+\end{document}
