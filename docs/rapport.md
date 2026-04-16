@@ -10,8 +10,8 @@ Dans un premier temps, nous détaillerons les caractéristiques de notre environ
 ---
 
 ## Caractéristiques des Périphériques Compatibles OpenCL
-Le PC sur lequel nous avons exécuté les kernels est équipé d'un **GPU NVIDIA GeForce RTX 3050 Laptop** avec les spécifications matérielles suivantes :
-- **Mémoire globale** : 3,68 Go
+Le PC sur lequel nous avons exécuté les kernels est équipé d'un **GPU NVIDIA GeForce RTX 3050 6GB Laptop** avec les spécifications matérielles suivantes :
+- **Mémoire globale** : 6 Go
 - **Cache global** : 560 Ko (READ_WRITE_CACHE)
 - **Ligne de cache globale** : 128 Octets
 - **Mémoire locale** : 48 Ko
@@ -32,8 +32,8 @@ Ce kernel calcule la multiplication matricielle en associant strictement un thre
 *Figure 1 : Schéma d'exécution du kernel coalescé non-optimisé.*
 
 **Performances :**
-- Temps d'exécution : ~0,963 secondes
-- Débit : **356 GFLOPS**
+- Temps d'exécution : ~37.8 secondes
+- Débit : **581 GFLOPS**
 - *Ceci nous sert de performance de référence (baseline).*
 
 ![Unoptimized Coalesced Kernel Performance](../assets/A-0-highlighted.png)
@@ -53,8 +53,8 @@ Ce kernel implémente deux optimisations pour contourner les limitations de la m
 *Figure 4 : Schéma d'explication de la vectorisation des accès.*
 
 **Performances :**
-- Temps d'exécution : ~0,358 secondes
-- Débit : **958 GFLOPS** (Accélération de 2,69x par rapport à la référence)
+- Temps d'exécution : ~22.47 secondes
+- Débit : **978 GFLOPS** (Accélération de 2,69x par rapport à la référence)
 
 ![Tiled & Wide Data-Types Performance](../assets/A-1-highlighted.png)
 *Figure 4 : Amélioration des performances suite au tuilage et à l'utilisation de types élargis.*
@@ -67,8 +67,8 @@ S'appuyer uniquement sur la mémoire locale entraîne tout de même une certaine
 *Figure 5 : Représentation du partitionnement par bloc en registres 2D.*
 
 **Performances :**
-- Temps d'exécution : ~0,194 secondes
-- Débit : **1748 GFLOPS** (Accélération de 4,90x par rapport à la référence)
+- Temps d'exécution : ~6.01 secondes
+- Débit : **3658 GFLOPS** (Accélération de 4,90x par rapport à la référence)
 
 ![Register Blocking Performance](../assets/A-2-highlighted.png)
 *Figure 6 : Amélioration des performances grâce au tuilage par registres.*
@@ -83,8 +83,8 @@ Nous utilisons une approche de **double buffering**, allouant deux fois plus de 
 3. Effectuer la multiplication matricielle et les calculs d'accumulation sur la tuile préalablement récupérée, ce qui permet l'overlap asynchrone des deux traitements.
 
 **Performances :**
-- Temps d'exécution : ~0,165 secondes
-- Débit : **2075 GFLOPS**
+- Temps d'exécution : ~5.26 secondes
+- Débit : **4180 GFLOPS**
 
 ![Prefetching Kernel Performance](../assets/A-prefetching-highlighted.png)
 *Figure 7 : Résultats de performance pour le kernel utilisant le prefetching.*
@@ -94,8 +94,8 @@ Nous utilisons une approche de **double buffering**, allouant deux fois plus de 
 En combinant l'ensemble des approches précédentes, ce kernel exploite le **Tuilage par Workgroup** en mémoire locale, couplé avec des **chargements élargis (`float4`)** et un **Tuilage par Registres en 2D** (`8x8 éléments calculés par thread`). Les chargements vectorisés diminuent le nombre de transactions vers la mémoire locale, tandis que l'utilisation des registres permet de maintenir les pipelines de calcul occupés sans avoir à attendre les réponses du cache. Cette combinaison synergique offre un parallélisme optimal au niveau des instructions et permet une efficience maximale des pipelines du GPU.
 
 **Performances et Évolution :**
-- Temps d'exécution : ~0,164 secondes
-- Débit : **2087 GFLOPS** (Accélération de 5,85x par rapport à la référence)
+- Temps d'exécution : ~5.26 secondes
+- Débit : **4180 GFLOPS** (Accélération de 5,85x par rapport à la référence)
 
 ![Optimized Kernel Performance](../assets/A-3-highlighted.png)
 *Figure 8 : Résultats de performance pour le kernel utilisant toutes les optimisations combinées.*
@@ -135,7 +135,7 @@ Pour faire en sorte que les deux périphériques terminent en même temps (limit
 - $Split_{CPU} = \frac{P_{CPU}}{P_{CPU} + P_{GPU}}$
 - $Split_{GPU} = \frac{P_{GPU}}{P_{CPU} + P_{GPU}}$
 
-En prenant comme base nos indications mesurées (~82 GFLOPS contre ~1039 GFLOPS), la méthode de répartition optimale consisterait à déléguer à peu près 92,6 % du travail conjoint au CPU/iGPU intégré, et seulement 7,4 % à l'imposant GPU NVIDIA Dédié. Or, la division arbitraire implantée nativement dans la base de code fixe initialement 15/16 du travail en faveur du GPU, et seulement 1/16 au CPU. Cela forme l'exact inverse d'une approche d'optimisation logique, forçant un fardeau démesuré sur notre GPU lent (limité pour l'occasion par des accès non-coalescés), ce qui ne parvient alors à générer qu'une accélération minime, voire souvent une pure perte de rendement.
+En prenant comme base nos indications mesurées (~82 GFLOPS contre ~1039 GFLOPS), la méthode de répartition optimale consisterait à déléguer à peu près 92,6 % du travail conjoint au CPU/iGPU intégré, et seulement 7,4 % à l'imposant GPU NVIDIA Dédié. Or, la division arbitraire implantée nativement dans la base de code fixe initialement 15/32 du travail en faveur du GPU, et seulement 17/32 au CPU. Cela forme l'exact inverse d'une approche d'optimisation logique, forçant un fardeau démesuré sur notre GPU lent (limité pour l'occasion par des accès non-coalescés), ce qui ne parvient alors à générer qu'une accélération minime, voire souvent une pure perte de rendement.
 
 ![Split execution diagram](../assets/B-split-strategy-diagram.png)
 *Figure 11 : Représentation visuelle de la stratégie de répartition de charge de travail.*
