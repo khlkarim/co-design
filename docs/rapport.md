@@ -128,24 +128,21 @@ En prenant comme base nos indications mesurées (~82 GFLOPS contre ~87 GFLOPS), 
 **Performances :**
 Une implémentation idéale de cette division de données, qui s'alignerait rigoureusement aux proportions d'efficience stipulées plus haut, entraîne un gain critique en capacité de débits de calcul. Cette démarche valorise grandement la synergie d'exécution concurrente des deux files de requêtes contextuelles ("command queues"), qui ont la faculté native de masquer les temps de transfert des données en mémoire en les superposant à l'exécution simultanée du CPU et du GPU.
 
-![GPU alone Performance](../assets/B-gpu-alone-highlighted.png)
-*Figure 11 : Performances repères en utilisant exclusivement le GPU non-coalescé.*
-
 ![GPU + CPU Performance](../assets/gpu+cpu.png)
-*Figure 12 : Performances accrues découlant de la coopération du CPU (Optimisé) et GPU (Non-Coalescé).*
+*Figure 11 : Performances accrues découlant de la coopération du CPU (Optimisé) et GPU (Non-Coalescé).*
 
 ### 4. Récapitulatif des performances
 
 ![GPU Alone vs GPU + CPU Barchart](../assets/B-performane-evolution-gflops.png)
-*Figure 13 : Diagramme à bandes récapitulatif comparant la force de calcul du périphérique combiné par rapport au mode isolé.*
+*Figure 12 : Diagramme à bandes récapitulatif comparant la force de calcul du périphérique combiné par rapport au mode isolé.*
 
 ![GPU Alone vs GPU + CPU Barchart](../assets/B-execution-time.png)
-*Figure 14 : Diagramme à bandes récapitulatif comparant le temps d'exécution du périphérique combiné par rapport au mode isolé.*
+*Figure 13 : Diagramme à bandes récapitulatif comparant le temps d'exécution du périphérique combiné par rapport au mode isolé.*
 
 ---
 
 ## Conclusion
 
-En conclusion, la Partie A prouve que la simple coalescence des accès en mémoire principale n'exploite qu'une infime réserve du potentiel du GPU. L'utilisation stratégique des divers niveaux de la hiérarchie mémoire (comme l'usage de la shared local memory via le "work-group tiling" et l'exploitation des registres avec le "2D register blocking"), conjuguée à la vectorisation des accès, se révèle indispensable. Ces méthodes ont permis de consolider l'intensité arithmétique et d'accomplir une accélération du débit de traitement d'un facteur 5,85x (de 356 GFLOPS à près de 2087 GFLOPS).
+En conclusion, la Partie A prouve que la simple coalescence des accès en mémoire principale n'exploite qu'une infime réserve du potentiel du GPU. L'utilisation stratégique des divers niveaux de la hiérarchie mémoire (comme l'usage de la shared local memory via le "work-group tiling" et l'exploitation des registres avec le "2D register blocking"), conjuguée à la vectorisation des accès, se révèle indispensable. Ces méthodes ont permis de consolider l'intensité arithmétique et d'accomplir une accélération du débit de traitement d'un facteur 7,19x (de 581 GFLOPS à près de 4180 GFLOPS).
 
 Par ailleurs, la Partie B met en exergue l'intérêt d'une co-exécution multi-périphériques, apte à capitaliser sur le parallélisme asynchrone des transferts mémoires (Host-to-Device) et du temps de calcul (Kernel Exec). Toutefois, nous avons clarifié qu'un tel système hétérogène ne devient un levier d'efficience qu'à la condition stricte d'intégrer une répartition des tâches pertinente et réaliste.
