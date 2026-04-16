@@ -82,15 +82,15 @@ En combinant l'ensemble des approches précédentes, ce kernel exploite le **Tui
 - Débit : **4180 GFLOPS** (Accélération de 7,19x par rapport à la référence)
 
 ![Optimized Kernel Performance](../assets/A-3-amal-full-highlighted.png)
-*Figure 8 : Résultats de performance pour le kernel utilisant toutes les optimisations combinées.*
+*Figure 7 : Résultats de performance pour le kernel utilisant toutes les optimisations combinées.*
 
-### 6. Récapitulatif des performances
+### 5. Récapitulatif des performances
 
 ![Performance Evolution Barchart](../assets/A-performance-evolution-gflops.png)
-*Figure 9 : Graphique de l'évolution du débit de calcul (en GFLOPS) en fonction des optimisations.*
+*Figure 8 : Graphique de l'évolution du débit de calcul (en GFLOPS) en fonction des optimisations.*
 
 ![Performance Evolution Barchart](../assets/A-performance-evolution-ms.png)
-*Figure 10 : Graphique de l'évolution du temps d'exécution (en millisecondes) selon les optimisations abordées.*
+*Figure 9 : Graphique de l'évolution du temps d'exécution (en millisecondes) selon les optimisations abordées.*
 
 ---
 
@@ -122,25 +122,25 @@ Pour faire en sorte que les deux périphériques terminent en même temps (limit
 En prenant comme base nos indications mesurées (~82 GFLOPS contre ~87 GFLOPS), la méthode de répartition optimale consisterait à déléguer environ 51,7 % du travail conjoint à l'iGPU intégré, et seulement 48,3 % au GPU NVIDIA Dédié. Cela forme l'inverse de l'approche d'optimisation logique, forçant un fardeau démesuré sur notre GPU lent (limité pour l'occasion par des accès non-coalescés), ce qui ne parvient alors à générer qu'une accélération minime, voire souvent une pure perte de rendement.
 
 ![Split execution diagram](../assets/B-split-strategy-diagram.png)
-*Figure 11 : Représentation visuelle de la stratégie de répartition de charge de travail.*
+*Figure 10 : Représentation visuelle de la stratégie de répartition de charge de travail.*
 
 ### 3. Implémentation du Split et Gains de Performance (Speedup)
 **Performances :**
 Une implémentation idéale de cette division de données, qui s'alignerait rigoureusement aux proportions d'efficience stipulées plus haut, entraîne un gain critique en capacité de débits de calcul. Cette démarche valorise grandement la synergie d'exécution concurrente des deux files de requêtes contextuelles ("command queues"), qui ont la faculté native de masquer les temps de transfert des données en mémoire en les superposant à l'exécution simultanée du CPU et du GPU.
 
 ![GPU alone Performance](../assets/B-gpu-alone-highlighted.png)
-*Figure 12 : Performances repères en utilisant exclusivement le GPU non-coalescé.*
+*Figure 11 : Performances repères en utilisant exclusivement le GPU non-coalescé.*
 
 ![GPU + CPU Performance](../assets/gpu+cpu.png)
-*Figure 13 : Performances accrues découlant de la coopération du CPU (Optimisé) et GPU (Non-Coalescé).*
+*Figure 12 : Performances accrues découlant de la coopération du CPU (Optimisé) et GPU (Non-Coalescé).*
 
 ### 4. Récapitulatif des performances
 
 ![GPU Alone vs GPU + CPU Barchart](../assets/B-performane-evolution-gflops.png)
-*Figure 14 : Diagramme à bandes récapitulatif comparant la force de calcul du périphérique combiné par rapport au mode isolé.*
+*Figure 13 : Diagramme à bandes récapitulatif comparant la force de calcul du périphérique combiné par rapport au mode isolé.*
 
 ![GPU Alone vs GPU + CPU Barchart](../assets/B-execution-time.png)
-*Figure 15 : Diagramme à bandes récapitulatif comparant le temps d'exécution du périphérique combiné par rapport au mode isolé.*
+*Figure 14 : Diagramme à bandes récapitulatif comparant le temps d'exécution du périphérique combiné par rapport au mode isolé.*
 
 ---
 
