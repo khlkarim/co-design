@@ -36,7 +36,7 @@ Ce kernel calcule la multiplication matricielle en associant strictement un thre
 - Débit : **581 GFLOPS**
 - *Ceci nous sert de performance de référence (baseline).*
 
-![Unoptimized Coalesced Kernel Performance](../assets/A-0-amal-coalesced-highlighted.png)
+![Unoptimized Coalesced Kernel Performance](../assets/A-0-amal-coalsced-highlighted.png)
 *Figure 2 : Résultats des performances pour le kernel coalescé de base.*
 
 ### 2. Première Optimisation : Workgroup Tiling & Wider Data-Types (`kernel_4.cl`)
@@ -56,7 +56,7 @@ Ce kernel implémente deux optimisations pour contourner les limitations de la m
 - Temps d'exécution : ~22.47 secondes
 - Débit : **978 GFLOPS** (Accélération de 2,69x par rapport à la référence)
 
-![Tiled & Wide Data-Types Performance](../assets/A-1-amal-wider-data-types-highlighted.png)
+![Tiled & Wide Data-Types Performance](../assets/A-2-amal-register-tiling-highlighted.png)
 *Figure 4 : Amélioration des performances suite au tuilage et à l'utilisation de types élargis.*
 
 ### 3. Deuxième Optimisation : 2D Register Blocking (`kernel_6.cl`)
