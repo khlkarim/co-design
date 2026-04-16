@@ -126,7 +126,7 @@ Afin de concevoir et justifier un ratio de répartition (split) cohérent et opt
 
 *Remarque : Du fait que le kernel de la carte NVIDIA repose sur des accès mémoire non-coalescés couplés à des matrices massives de N=8192, son débit s'effondre littéralement ; cela rend ce traitement inéluctablement plus lent que le kernel optimisé s'exécutant sur un périphérique autrement considéré comme moins performant en temps normal.*
 
-### 2. Stratégie de Répartition ("Split Strategy")
+### 2. Stratégie de Répartition
 **Explication :**
 Le but est de conférer dynamiquement le calcul de certaines sous-matrices ($M \times K$ et $K \times N$) au travers des deux périphériques OpenCL de manière concurrente. Une stratégie de répartition de charge optimale se base donc sur une attribution du calcul strictement proportionnelle à la capacité de traitement en conditions réelles de chaque appareil.
 
