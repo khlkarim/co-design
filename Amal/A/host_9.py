@@ -6,9 +6,9 @@ import random
 # =========================
 # 🔧 Parameters (RTX 3050 tuned)
 # =========================
-M = 8192
-N = 8192
-K = 8192
+M = 2048    
+N = 2048
+K = 2048
 
 TSM = 128
 TSN = 128
@@ -17,7 +17,7 @@ WPTM = 8
 WPTN = 8
 WIDTH = 4
 
-COUNT = 10
+COUNT = 20
 
 # =========================
 # ✅ Sanity checks
@@ -71,7 +71,7 @@ d_C = cl.Buffer(context, mf.WRITE_ONLY, C.nbytes)
 # =========================
 # 📦 Load kernel
 # =========================
-with open("C:\\co-design\\co-design\\Amal\\A\\kernel_9.cl") as f:
+with open("./A/kernel_9.cl") as f:
     kernel_src = f.read()
 
 kernel_src = f"""

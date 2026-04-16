@@ -73,7 +73,23 @@ S'appuyer uniquement sur la mémoire locale entraîne tout de même une certaine
 ![Register Blocking Performance](../assets/A-2-highlighted.png)
 *Figure 6 : Amélioration des performances grâce au tuilage par registres.*
 
-### 4. Kernel Entièrement Optimisé (`kernel_7.cl`)
+### 4. Quatrième Optimisation : Software Pre-fetching (`kernel_9.cl`)
+**Explication :**
+Pendant que le kernel effectue les calculs sur la tuile courante, les threads chargent déjà la tuile suivante dans la mémoire locale. Cette superposition permet de cacher la latence des instructions mémoire derrière les calculs.
+
+Nous utilisons une approche de **double tampon (double buffering)**, allouant deux fois plus de mémoire locale pour stocker à la fois la tuile courante et la tuile suivante (`Asub[2][...]` et `Bsub[2][...]`). L'algorithme se structure alors ainsi :
+1. Avant le début de la boucle principale, charger la toute première tuile dans les variables locales et opérer une première synchronisation.
+2. Au sein de la boucle principale, charger immédiatement la tuile suivante en s'appuyant sur l'indice du tampon alterné.
+3. Effectuer la multiplication matricielle et les calculs d'accumulation sur la tuile préalablement récupérée, ce qui permet l'overlap asynchrone des deux traitements.
+
+**Performances :**
+- Temps d'exécution : ~0,165 secondes
+- Débit : **2075 GFLOPS**
+
+![Prefetching Kernel Performance](../assets/A-prefetching-highlighted.png)
+*Figure 7 : Résultats de performance pour le kernel utilisant le prefetching.*
+
+### 5. Kernel Entièrement Optimisé (`kernel_7.cl`)
 **Explication :**
 En combinant l'ensemble des approches précédentes, ce kernel entièrement optimisé exploite le **Tuilage par Workgroup** en mémoire locale, couplé avec des **chargements élargis (`float4`)** et un **Tuilage par Registres en 2D** (`8x8 éléments calculés par thread`). Les chargements vectorisés diminuent le nombre de transactions vers la mémoire locale, tandis que l'utilisation des registres permet de maintenir les pipelines de calcul occupés sans avoir à attendre les réponses du cache. Cette combinaison synergique offre un parallélisme optimal au niveau des instructions et permet une efficience maximale des pipelines du processeur graphique.
 
@@ -82,15 +98,15 @@ En combinant l'ensemble des approches précédentes, ce kernel entièrement opti
 - Débit : **2087 GFLOPS** (Accélération de 5,85x par rapport à la référence)
 
 ![Optimized Kernel Performance](../assets/A-3-highlighted.png)
-*Figure 7 : Résultats de performance pour le kernel utilisant toutes les optimisations combinées.*
+*Figure 8 : Résultats de performance pour le kernel utilisant toutes les optimisations combinées.*
 
-### 5. Récapitulatif des performances
+### 6. Récapitulatif des performances
 
 ![Performance Evolution Barchart](../assets/A-performance-evolution-gflops.png)
-*Figure 8 : Graphique de l'évolution du débit de calcul (en GFLOPS) en fonction des optimisations.*
+*Figure 9 : Graphique de l'évolution du débit de calcul (en GFLOPS) en fonction des optimisations.*
 
 ![Performance Evolution Barchart](../assets/A-performance-evolution-ms.png)
-*Figure 9 : Graphique de l'évolution du temps d'exécution (en millisecondes) selon les optimisations abordées.*
+*Figure 10 : Graphique de l'évolution du temps d'exécution (en millisecondes) selon les optimisations abordées.*
 
 ---
 
@@ -122,25 +138,25 @@ Pour faire en sorte que les deux périphériques terminent en même temps (limit
 En prenant comme base nos indications mesurées (~82 GFLOPS contre ~1039 GFLOPS), la méthode de répartition optimale consisterait à déléguer à peu près 92,6 % du travail conjoint au CPU/iGPU intégré, et seulement 7,4 % à l'imposant GPU NVIDIA Dédié. Or, la division arbitraire implantée nativement dans la base de code fixe initialement 15/16 du travail en faveur du GPU, et seulement 1/16 au CPU. Cela forme l'exact inverse d'une approche d'optimisation logique, forçant un fardeau démesuré sur notre GPU lent (limité pour l'occasion par des accès non-coalescés), ce qui ne parvient alors à générer qu'une accélération minime, voire souvent une pure perte de rendement.
 
 ![Split execution diagram](../assets/B-split-strategy-diagram.png)
-*Figure 10 : Représentation visuelle de la stratégie de répartition de charge de travail.*
+*Figure 11 : Représentation visuelle de la stratégie de répartition de charge de travail.*
 
 ### 3. Implémentation du Split et Gains de Performance (Speedup)
 **Performances :**
 Une implémentation idéale de cette division de données, qui s'alignerait rigoureusement aux proportions d'efficience stipulées plus haut, entraîne un gain critique en capacité de débits de calcul. Cette démarche valorise grandement la synergie d'exécution concurrente des deux files de requêtes contextuelles ("command queues"), qui ont la faculté native de masquer les temps de transfert des données en mémoire en les superposant à l'exécution simultanée du CPU et du GPU.
 
 ![GPU alone Performance](../assets/B-gpu-alone-highlighted.png)
-*Figure 11 : Performances repères en utilisant exclusivement le GPU non-coalescé.*
+*Figure 12 : Performances repères en utilisant exclusivement le GPU non-coalescé.*
 
 ![GPU + CPU Performance](../assets/gpu+cpu.png)
-*Figure 12 : Performances accrues découlant de la coopération du CPU (Optimisé) et GPU (Non-Coalescé).*
+*Figure 13 : Performances accrues découlant de la coopération du CPU (Optimisé) et GPU (Non-Coalescé).*
 
 ### 4. Récapitulatif des performances
 
 ![GPU Alone vs GPU + CPU Barchart](../assets/B-performane-evolution-gflops.png)
-*Figure 13 : Diagramme à bandes récapitulatif comparant la force de calcul du périphérique combiné par rapport au mode isolé.*
+*Figure 14 : Diagramme à bandes récapitulatif comparant la force de calcul du périphérique combiné par rapport au mode isolé.*
 
 ![GPU Alone vs GPU + CPU Barchart](../assets/B-execution-time.png)
-*Figure 14 : Diagramme à bandes récapitulatif comparant le temps d'exécution du périphérique combiné par rapport au mode isolé.*
+*Figure 15 : Diagramme à bandes récapitulatif comparant le temps d'exécution du périphérique combiné par rapport au mode isolé.*
 
 ---
 
