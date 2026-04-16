@@ -115,7 +115,7 @@ En combinant l'ensemble des approches précédentes, ce kernel exploite le **Tui
 Dans cette partie, nous allons répartir le traitement entre la carte graphique dédiée (NVIDIA RTX 3050) et la puce graphique intégrée (iGPU). Le GPU dédié se chargera d'exécuter la logique de base lente et **non-coalescée**, tandis que le périphérique intégré exécutera l'approche la plus performante (le **kernel entièrement optimisé** construit tout au long de la Partie A).
 
 ### 1. Performances Indépendantes (N = 8192)
-Afin de concevoir et justifier un ratio de répartition (split) cohérent et optimal, nous avons d'abord besoin de comparer leurs performances lorsqu'ils opèrent de façon indépendante.
+Afin de concevoir et justifier un ratio de répartition cohérent et optimal, nous avons d'abord besoin de comparer leurs performances lorsqu'ils opèrent de façon indépendante.
 
 | Périphérique | Méthode Appliquée | Débit (GFLOPS) |
 |---|---|---|
